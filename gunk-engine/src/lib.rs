@@ -1,6 +1,7 @@
 pub mod core;
 pub mod platform;
 pub mod renderer;
+pub mod resource_utils;
 
 // pub fn add(left: usize, right: usize) -> usize {
 //     left + right

@@ -1,5 +1,3 @@
-pub mod resource;
-
 use gunk_engine::{
     core::application
 };
