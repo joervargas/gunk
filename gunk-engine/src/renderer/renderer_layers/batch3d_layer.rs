@@ -1,9 +1,9 @@
-use crate::renderer::{
+use crate::{renderer::{
     texture::{self, Texture}, 
     wgpu_utils::*,
-};
+}, resource_utils};
 
-use crate::renderer::model::{ModelVertex, Vertex};
+use crate::renderer::model::{self, ModelVertex, Vertex, DrawModel};
 
 use super::layer::RendererLayer;
 use nalgebra_glm as glm;
@@ -77,13 +77,14 @@ pub struct Batch3DLayer
     pub bind_group: wgpu::BindGroup,
     pub shader: wgpu::ShaderModule,
 
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
+    // pub vertex_buffer: wgpu::Buffer,
+    // pub index_buffer: wgpu::Buffer,
 
-    pub texture: texture::Texture,
+    // pub texture: texture::Texture,
 
     pub instances: Vec<Batch3DInstance>,
     pub instance_buffer: wgpu::Buffer,
+    pub obj_model: model::Model
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
@@ -178,20 +179,24 @@ impl Batch3DLayer
             Some(Texture::get_depth_stencil_state())
         );
 
-        let vertex_buffer = create_wgpu_buffer::<ModelVertex>(&device, "Vertex Buffer", wgpu::BufferUsages::VERTEX, VERTICES);
-        let index_buffer = create_wgpu_buffer::<u32>(&device, "Index Buffer", wgpu::BufferUsages::INDEX, INDICES);
+        // let vertex_buffer = create_wgpu_buffer::<ModelVertex>(&device, "Vertex Buffer", wgpu::BufferUsages::VERTEX, VERTICES);
+        // let index_buffer = create_wgpu_buffer::<u32>(&device, "Index Buffer", wgpu::BufferUsages::INDEX, INDICES);
 
-
+        // let obj_model = resource_utils::load_model("", &device, &queue, &texture_bind_group_layout).unwrap();
+        let obj_model = resource_utils::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
+        // let obj_model = model::Model::new("../../../res/cube.obj", &device, &queue, &texture_bind_group_layout).expect("Failed to create .obj");
+        
         Self
         {
             render_pipeline,
             bind_group: diffuse_bind_group,
             shader,
-            vertex_buffer,
-            index_buffer,
-            texture: diffuse_texture,
+            // vertex_buffer,
+            // index_buffer,
+            // texture: diffuse_texture,
             instances,
-            instance_buffer
+            instance_buffer,
+            obj_model
         }
     }
 }
@@ -241,11 +246,13 @@ impl RendererLayer for Batch3DLayer
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         render_pass.set_bind_group(1, &self.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-        // render_pass.draw(0..VERTICES.len() as u32, 0..1);
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..self.instances.len() as u32);
+        // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        // // render_pass.draw(0..VERTICES.len() as u32, 0..1);
+        // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        // render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..self.instances.len() as u32);
+
+        render_pass.draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
 
         Ok(())
     }

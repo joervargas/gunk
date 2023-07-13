@@ -18,7 +18,7 @@ impl Texture
         ) -> Result<Self>
     {
         let img = image::load_from_memory(bytes)?;
-        Self::from_image(device, queue, &img, label)
+        Self::from_image(&device, &queue, &img, label)
     }
 
     pub fn from_image(

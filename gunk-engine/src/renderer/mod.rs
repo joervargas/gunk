@@ -13,11 +13,11 @@ use winit::window;
 use self::{
     wgpu_utils::*, 
     renderer_layers::{
-        layer::{RendererLayer}, 
+        layer::RendererLayer,
         // model_layer::ModelLayer, 
         batch3d_layer::Batch3DLayer,
     }, 
-    camera::{ CameraObject }
+    camera::CameraObject,
 };
 
 // use crate::platform::{ event_statics::*, event_types::* };

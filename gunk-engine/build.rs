@@ -1,24 +1,20 @@
 use anyhow::*;
 use fs_extra::copy_items;
 use fs_extra::dir::CopyOptions;
-use std::{env, vec};
+// use copy_to_output::copy_to_output;
+use std::env;
 
 fn main() -> Result<()>
 {
-    // This tells cargo to rerun this script if something in res/ changes.
-    println!("cargo:rerun-if-changed=res/*");
 
-    // Prepare what to copy and how
+    println!("cargo:rerun-if-changed=res/*");
+    
+    let out_dir = env::var("OUT_DIR")?;
     let mut copy_options = CopyOptions::new();
     copy_options.overwrite = true;
-    let paths_to_copy = vec!["res/"];
-    
-    // Copy the items to the directory where the executable will be built
-    let out_dir = env::var("OUT_DIR")?;
+    let mut paths_to_copy = Vec::new();
+    paths_to_copy.push("res/");
     copy_items(&paths_to_copy, out_dir, &copy_options)?;
-
-    // Copy the items to the directory where they will be hosted
-
 
     Ok(())
 }
