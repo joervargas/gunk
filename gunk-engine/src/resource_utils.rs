@@ -233,7 +233,6 @@ pub fn load_model(
     for m in obj_materials?
     {
         let diffuse_texture = load_texture(&m.diffuse_texture.as_ref().unwrap().as_str(), &device, &queue)?;
-        dbg!();
 
         let bind_group_desc = wgpu::BindGroupDescriptor
         {

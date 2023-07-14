@@ -88,7 +88,7 @@ pub struct Batch3DLayer
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 10;
-const INSTANCE_DISPLACEMENT: glm::Vec3 = glm::Vec3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
+// const INSTANCE_DISPLACEMENT: glm::Vec3 = glm::Vec3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0, NUM_INSTANCES_PER_ROW as f32 * 0.5);
 
 impl Batch3DLayer
 {
@@ -148,11 +148,15 @@ impl Batch3DLayer
         // first is group 0, second is group 1, ...
         let batch3d_layer_bind_group_layouts = [ camera_bind_layout, &[&texture_bind_group_layout] ].concat();
 
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| 
         {
             (0..NUM_INSTANCES_PER_ROW).map(move |x|
             {
-                let position = glm::Vec3::new(x as f32, 0.0, z as f32) - INSTANCE_DISPLACEMENT;
+                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                
+                let position = glm::Vec3::new(x, 0.0, z);
                 let rotation = if position.eq(&glm::Vec3::new(0.0, 0.0, 0.0))
                 {
                     glm::quat_angle_axis(0.0, &glm::Vec3::new(0.0, 0.0, 1.0))
@@ -247,7 +251,7 @@ impl RendererLayer for Batch3DLayer
         render_pass.set_bind_group(0, camera_bind_group, &[]);
         render_pass.set_bind_group(1, &self.bind_group, &[]);
         // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        // render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         // // render_pass.draw(0..VERTICES.len() as u32, 0..1);
         // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         // render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..self.instances.len() as u32);
