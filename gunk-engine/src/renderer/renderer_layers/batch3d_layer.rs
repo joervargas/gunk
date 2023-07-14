@@ -248,15 +248,16 @@ impl RendererLayer for Batch3DLayer
         let mut render_pass = encoder.begin_render_pass(&renderpass_desc);
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, camera_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.bind_group, &[]);
+        // render_pass.set_bind_group(0, camera_bind_group, &[]);
+        // render_pass.set_bind_group(1, &self.bind_group, &[]);
         // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
         // // render_pass.draw(0..VERTICES.len() as u32, 0..1);
         // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         // render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..self.instances.len() as u32);
 
-        render_pass.draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
+        // render_pass.draw_mesh_instanced(&self.obj_model.meshes[0], &self.obj_model.materials[self.obj_model.meshes[0].material], camera_bind_group, 0..self.instances.len() as u32);
+        render_pass.draw_model_instanced(&self.obj_model, camera_bind_group, 0..self.instances.len() as u32);
 
         Ok(())
     }
