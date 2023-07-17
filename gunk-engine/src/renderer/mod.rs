@@ -3,6 +3,7 @@ pub mod renderer_layers;
 pub mod texture;
 pub mod camera;
 pub mod model;
+pub mod light;
 
 // use std::sync::{RwLock, Arc};
 
@@ -33,6 +34,7 @@ pub struct WgpuContext
     pub depth_texture: texture::Texture,
     
     pub camera_obj: CameraObject,
+    pub scene_light: light::SceneLight,
 
     pub layers: Vec<Box::<dyn RendererLayer>>,
 }
@@ -70,9 +72,13 @@ impl WgpuContext
 
         let camera_obj = CameraObject::new(&device, camera);
 
+        let scene_light = light::SceneLight::new(&device, "scene light", [2.0, 2.0, 2.0], [1.0, 1.0, 1.0]);
+
         let mut layers: Vec<Box<dyn RendererLayer>> = Vec::new();
-        // layers.push(Box::new(ModelLayer::new(&device, &queue, &surface_info, &[&camera_bind_group_layout])));
-        layers.push(Box::new(Batch3DLayer::new(&device, &queue, &surface_info, &[&camera_obj.bind_group_layout])));
+        // order is important
+        // first is group 0, second is group 1, ...
+        let scene_bind_group_layouts = [&camera_obj.bind_group_layout, &scene_light.bind_group_layout];
+        layers.push(Box::new(Batch3DLayer::new(&device, &queue, &surface_info, &scene_bind_group_layouts)));
 
         Self{
             surface,
@@ -85,7 +91,8 @@ impl WgpuContext
             depth_texture,
             
             camera_obj,
-            
+            scene_light,
+
             layers,
         }
     }

@@ -63,7 +63,7 @@ impl Camera
         DEPTH_CORRECTION_MATRIX * glm::perspective(self.aspect, self.fov, self.near, self.far)
     }
 
-    pub fn get_bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static>
+    pub fn get_bind_group_layout_desc() -> wgpu::BindGroupLayoutDescriptor<'static>
     {
         wgpu::BindGroupLayoutDescriptor
         {

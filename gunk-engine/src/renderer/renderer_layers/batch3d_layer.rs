@@ -87,7 +87,7 @@ const NUM_INSTANCES_PER_ROW: u32 = 10;
 
 impl Batch3DLayer
 {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_info: &WgpuSurfaceInfo, camera_bind_layout: &[&wgpu::BindGroupLayout]) -> Self
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_info: &WgpuSurfaceInfo, scene_bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self
     {
 
         let bind_group_entries = [
@@ -120,7 +120,7 @@ impl Batch3DLayer
 
         // order is important
         // first is group 0, second is group 1, ...
-        let batch3d_layer_bind_group_layouts = [ camera_bind_layout, &[&texture_bind_group_layout] ].concat();
+        let batch3d_layer_bind_group_layouts = [ scene_bind_group_layouts, &[&texture_bind_group_layout] ].concat();
 
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| 
