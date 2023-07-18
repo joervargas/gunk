@@ -16,7 +16,7 @@ use self::{
     renderer_layers::{
         layer::RendererLayer,
         // model_layer::ModelLayer, 
-        batch3d_layer::Batch3DLayer,
+        batch3d_layer::Batch3DLayer, model_layer::ModelLayer,
     }, 
     camera::CameraObject,
 };
@@ -78,6 +78,7 @@ impl WgpuContext
         // order is important
         // first is group 0, second is group 1, ...
         let scene_bind_group_layouts = [&camera_obj.bind_group_layout, &scene_light.bind_group_layout];
+        layers.push(Box::new(ModelLayer::new(&device, &queue, &surface_info, &scene_bind_group_layouts)));
         layers.push(Box::new(Batch3DLayer::new(&device, &queue, &surface_info, &scene_bind_group_layouts)));
 
         Self{
@@ -130,7 +131,7 @@ impl WgpuContext
 
         for layer in self.layers.iter_mut()
         {
-            layer.render(& mut encoder, &view, Some(&self.depth_texture.view), &self.camera_obj.bind_group)?;
+            layer.render(& mut encoder, &view, Some(&self.depth_texture.view), &self.camera_obj.bind_group, &self.scene_light.bind_group)?;
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

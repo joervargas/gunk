@@ -8,6 +8,7 @@ pub trait RendererLayer
     fn render(
         &mut self, encoder: &mut wgpu::CommandEncoder, 
         surface_view: &wgpu::TextureView, depth_texture_view: Option<&wgpu::TextureView>, 
-        camera_bind_group: &wgpu::BindGroup
+        camera_bind_group: &wgpu::BindGroup,
+        light_bind_group: &wgpu::BindGroup,
     ) -> Result<(), wgpu::SurfaceError>;
 }

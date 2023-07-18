@@ -184,7 +184,7 @@ impl RendererLayer for Batch3DLayer
         todo!()
     }
 
-    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, surface_view: &wgpu::TextureView, depth_texture_view: Option<&wgpu::TextureView>, camera_bind_group: &wgpu::BindGroup) -> Result<(), wgpu::SurfaceError>
+    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, surface_view: &wgpu::TextureView, depth_texture_view: Option<&wgpu::TextureView>, camera_bind_group: &wgpu::BindGroup, light_bind_group: &wgpu::BindGroup) -> Result<(), wgpu::SurfaceError>
     {
         let color_attachment = wgpu::RenderPassColorAttachment
         {
@@ -220,7 +220,7 @@ impl RendererLayer for Batch3DLayer
         render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
         // render_pass.draw_mesh_instanced(&self.obj_model.meshes[0], &self.obj_model.materials[self.obj_model.meshes[0].material], camera_bind_group, 0..self.instances.len() as u32);
-        render_pass.draw_model_instanced(&self.obj_model, camera_bind_group, 0..self.instances.len() as u32);
+        render_pass.draw_model_instanced(&self.obj_model, camera_bind_group, light_bind_group, 0..self.instances.len() as u32);
 
         Ok(())
     }

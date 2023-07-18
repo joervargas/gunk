@@ -1,28 +1,32 @@
 use crate::renderer::{
-    texture::{self, Texture}, 
+    texture::Texture, 
     wgpu_utils::*,
+    model::{self, DrawModel, Vertex},
 };
+
+use crate::resource_utils;
 
 use super::layer::RendererLayer;
 
 pub struct ModelLayer
 {
     pub render_pipeline: wgpu::RenderPipeline,
-    pub bind_group: wgpu::BindGroup,
-    pub shader: wgpu::ShaderModule,
+    // pub bind_group: wgpu::BindGroup,
+    pub model_shader: wgpu::ShaderModule,
 
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
+    // pub vertex_buffer: wgpu::Buffer,
+    // pub index_buffer: wgpu::Buffer,
 
-    pub texture: texture::Texture,
+    // pub texture: texture::Texture,
+    pub obj_model: model::Model,
 }
 
 impl ModelLayer
 {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_info: &WgpuSurfaceInfo, camera_bind_layout: &[&wgpu::BindGroupLayout]) -> Self
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_info: &WgpuSurfaceInfo, scene_bind_group_layouts: &[&wgpu::BindGroupLayout]) -> Self
     {
-        let diffuse_bytes = include_bytes!("../../assets/textures/happy-tree.png");
-        let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, Some("happy-tree.png")).unwrap();
+        // let diffuse_bytes = include_bytes!("../../assets/textures/happy-tree.png");
+        // let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, Some("happy-tree.png")).unwrap();
         
         let bind_group_entries = [
             wgpu::BindGroupLayoutEntry
@@ -51,52 +55,69 @@ impl ModelLayer
             entries: &bind_group_entries
         };
         let texture_bind_group_layout = device.create_bind_group_layout(&bind_group_layout_desc);
-        let bind_group_entries = [
-            wgpu::BindGroupEntry
-            {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-            },
-            wgpu::BindGroupEntry
-            {
-                binding: 1,
-                resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-            }
-        ];
-        let bind_group_desc = wgpu::BindGroupDescriptor
-        {
-            label: Some("diffuse_bind_group"),
-            layout: &texture_bind_group_layout,
-            entries: &bind_group_entries,
-        };
-        let diffuse_bind_group = device.create_bind_group(&bind_group_desc);
+        // let bind_group_entries = [
+        //     wgpu::BindGroupEntry
+        //     {
+        //         binding: 0,
+        //         resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
+        //     },
+        //     wgpu::BindGroupEntry
+        //     {
+        //         binding: 1,
+        //         resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
+        //     }
+        // ];
 
+        // let bind_group_desc = wgpu::BindGroupDescriptor
+        // {
+        //     label: Some("diffuse_bind_group"),
+        //     layout: &texture_bind_group_layout,
+        //     entries: &bind_group_entries,
+        // };
+        // let diffuse_bind_group = device.create_bind_group(&bind_group_desc);
+
+        
         // order is important
         // first is group 0, second is group 1, ...
-        let model_layer_bind_group_layouts = [ camera_bind_layout, &[&texture_bind_group_layout] ].concat();
+        let model_layer_bind_group_layouts = [ scene_bind_group_layouts, &[&texture_bind_group_layout] ].concat();
         
-        let render_pipeline_layout = create_wgpu_pipelinelayout(&device, model_layer_bind_group_layouts.as_slice(), &[]);
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/shader.wgsl"));
+        let model_pipeline_layout = create_wgpu_pipelinelayout(&device, model_layer_bind_group_layouts.as_slice(), &[]);
+        let model_shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/shader.wgsl"));
         let render_pipeline = create_wgpu_render_pipeline(
             &device, Some("model pipeline"), 
             &surface_info.configuration,
-            &render_pipeline_layout, 
-            &shader, 
-            &[Vertex::desc()],
+            &model_pipeline_layout, 
+            &model_shader, 
+            &[model::ModelVertex::desc()],
+            Some(Texture::get_depth_stencil_state())
+        );
+        
+        let light_pipeline_layout = create_wgpu_pipelinelayout(&device, scene_bind_group_layouts, &[]);
+        let light_shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/model_light.wgsl"));
+        let light_pipeline = create_wgpu_render_pipeline(
+            &device, 
+            Some("model light"), 
+            &surface_info.configuration, 
+            &light_pipeline_layout, 
+            &light_shader, 
+            &[model::ModelVertex::desc()], 
             Some(Texture::get_depth_stencil_state())
         );
 
-        let vertex_buffer = create_wgpu_buffer::<Vertex>(&device, "Vertex Buffer", wgpu::BufferUsages::VERTEX, VERTICES);
-        let index_buffer = create_wgpu_buffer::<u32>(&device, "Index Buffer", wgpu::BufferUsages::INDEX, INDICES);
+        // let vertex_buffer = create_wgpu_buffer::<Vertex>(&device, "Vertex Buffer", wgpu::BufferUsages::VERTEX, VERTICES);
+        // let index_buffer = create_wgpu_buffer::<u32>(&device, "Index Buffer", wgpu::BufferUsages::INDEX, INDICES);
+
+        let obj_model = resource_utils::load_model("cube.obj", &device, &queue, &texture_bind_group_layout).unwrap();
 
         Self
         {
             render_pipeline,
-            bind_group: diffuse_bind_group,
-            shader,
-            vertex_buffer,
-            index_buffer,
-            texture: diffuse_texture,
+            // bind_group: diffuse_bind_group,
+            model_shader,
+            // vertex_buffer,
+            // index_buffer,
+            // texture: diffuse_texture,
+            obj_model,
         }
     }
 }
@@ -111,7 +132,7 @@ impl RendererLayer for ModelLayer
         todo!()
     }
 
-    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, surface_view: &wgpu::TextureView, depth_texture_view: Option<&wgpu::TextureView>, camera_bind_group: &wgpu::BindGroup) -> Result<(), wgpu::SurfaceError>
+    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, surface_view: &wgpu::TextureView, depth_texture_view: Option<&wgpu::TextureView>, camera_bind_group: &wgpu::BindGroup, light_bind_group: &wgpu::BindGroup) -> Result<(), wgpu::SurfaceError>
     {
         let color_attachment = wgpu::RenderPassColorAttachment
         {
@@ -144,13 +165,15 @@ impl RendererLayer for ModelLayer
         let mut render_pass = encoder.begin_render_pass(&renderpass_desc);
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, camera_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        // render_pass.draw(0..VERTICES.len() as u32, 0..1);
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-        render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
 
+        render_pass.draw_model(&self.obj_model, camera_bind_group, light_bind_group);
+        // render_pass.set_bind_group(0, camera_bind_group, &[]);
+        // render_pass.set_bind_group(1, &self.bind_group, &[]);
+        // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        // // render_pass.draw(0..VERTICES.len() as u32, 0..1);
+        // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        // render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
+        
         Ok(())
     }
 }

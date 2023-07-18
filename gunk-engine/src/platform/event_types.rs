@@ -2,17 +2,10 @@
 
 use std::{sync::{ Arc, RwLock }, ops::DerefMut};
 
-use winit::event::{ElementState};
+use winit::event::ElementState;
 
 
 // Key Events
-
-// pub struct KeyData
-// {
-//     pub scancode: u32,
-//     pub state: ElementState,
-//     pub virtual_keycode: Option<VirtualKeyCode>
-// }
 
 pub trait IKeyListener
 {
