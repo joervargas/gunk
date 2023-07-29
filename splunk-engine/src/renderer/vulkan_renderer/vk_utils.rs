@@ -3,7 +3,7 @@ use ash::{
     extensions::khr
 };
 
-use super::vulkan_loader::{AshVkSurface, VulkanLoader};
+use super::vulkan_loader::AshVkSurface;
 use crate::{ vk_check, log_info, log_err };
 
 
@@ -121,6 +121,8 @@ pub fn create_vk_device(instance: &ash::Instance, physical_device: &vk::Physical
 
 pub fn create_vk_allocator(instance: &ash::Instance, physical_device: &vk::PhysicalDevice, device: &ash::Device) -> gpu_allocator::vulkan::Allocator
 {
+    log_info!("Creating Memory Allocator...");
+
     let alloc_desc = gpu_allocator::vulkan::AllocatorCreateDesc
     {
         instance: instance.clone(),
@@ -130,7 +132,11 @@ pub fn create_vk_allocator(instance: &ash::Instance, physical_device: &vk::Physi
         buffer_device_address: true,
     };
 
-    gpu_allocator::vulkan::Allocator::new(&alloc_desc).map_err(|e| { log_err!(e); } ).unwrap()
+    let allocator = gpu_allocator::vulkan::Allocator::new(&alloc_desc).map_err(|e| { log_err!(e); } ).unwrap();
+
+    log_info!("Memory Allocator created");
+
+    allocator
 }
 
 pub struct SwapchainDetails
@@ -160,25 +166,104 @@ pub fn query_vk_swapchain_details(physical_device: &vk::PhysicalDevice, surface:
 
 pub fn choose_vk_swap_surface_format(formats: Vec<vk::SurfaceFormatKHR>) -> vk::SurfaceFormatKHR
 {
-    todo!()
+    for format in formats.iter()
+    {
+        if format.format == vk::Format::B8G8R8A8_SRGB && format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
+        {
+            return format.clone();
+        }
+    }
+    formats[0].clone()
 }
 
 pub fn choose_vk_swap_present_mode(present_modes: Vec<vk::PresentModeKHR>) -> vk::PresentModeKHR
 {
-    todo!()
+    for mode in present_modes.iter()
+    {
+        if *mode == vk::PresentModeKHR::MAILBOX
+        {
+            return mode.clone();
+        }
+    }
+    vk::PresentModeKHR::FIFO
 }
 
 pub fn choose_vk_swap_image_count(capabilities: vk::SurfaceCapabilitiesKHR) -> u32
 {
-    todo!()
+    let image_count = capabilities.min_image_count + 1;
+
+    let image_count_exceeded = capabilities.max_image_count > 0 && image_count > capabilities.max_image_count;
+
+    if image_count_exceeded { capabilities.max_image_count } else { image_count }
 }
 
-pub fn choose_vk_swap_extent(capabilities: vk::SurfaceCapabilitiesKHR) -> vk::Extent2D
+pub fn create_vk_swapchain(
+        instance: &ash::Instance,
+        device: &ash::Device,
+        surface: &AshVkSurface, 
+        queue_indices: &Vec<u32>,
+        capabilities: vk::SurfaceCapabilitiesKHR,
+        surface_format: &vk::SurfaceFormatKHR,
+        present_mode: &vk::PresentModeKHR,
+        image_count: u32,
+        extent: &vk::Extent2D,
+    ) -> (khr::Swapchain, vk::SwapchainKHR)
 {
-    todo!()
+    log_info!("Createing VkSwaphainKHR handle...");
+
+    let create_info = vk::SwapchainCreateInfoKHR
+    {
+        s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
+        p_next: std::ptr::null(),
+        flags: vk::SwapchainCreateFlagsKHR::empty(),
+        surface: surface.handle,
+        min_image_count: image_count,
+        image_color_space: surface_format.color_space,
+        image_format: surface_format.format,
+        image_extent: *extent,
+        image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_DST,
+        image_sharing_mode: vk::SharingMode::EXCLUSIVE,
+        queue_family_index_count: queue_indices.len() as u32,
+        p_queue_family_indices: queue_indices.as_ptr(),
+        pre_transform: capabilities.current_transform,
+        composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
+        present_mode: *present_mode,
+        clipped: vk::TRUE,
+        old_swapchain: vk::SwapchainKHR::null(),
+        image_array_layers: 1
+    };
+
+    let swapchain_loader = ash::extensions::khr::Swapchain::new(instance, device);
+    let swapchain_handle = unsafe 
+    {
+        swapchain_loader.create_swapchain(&create_info, None).map_err( |e| { log_err!(e); } ).unwrap()
+    };
+
+    log_info!("VkSwapchainKHR created");
+    
+    (swapchain_loader, swapchain_handle)
 }
 
-pub fn create_vk_swapchain(physical_device: &vk::PhysicalDevice, surface: &AshVkSurface,  queue_indices: &Vec<u32>, width: u32, height: u32) -> (khr::Swapchain, vk::SwapchainKHR)
+pub fn create_vk_image_view(device: &ash::Device, image: &vk::Image, format: &vk::Format, aspect_flags: vk::ImageAspectFlags, view_type: vk::ImageViewType, layer_count: u32, mip_levels: u32) -> vk::ImageView
 {
-    todo!()
+    let create_info = vk::ImageViewCreateInfo
+    {
+        s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+        p_next: std::ptr::null(),
+        flags: vk::ImageViewCreateFlags::empty(),
+        image: *image,
+        view_type: view_type,
+        format: *format,
+        subresource_range: vk::ImageSubresourceRange
+        {
+            aspect_mask: aspect_flags,
+            base_mip_level: 0,
+            level_count: mip_levels,
+            base_array_layer: 0,
+            layer_count: layer_count,
+        },
+        ..Default::default()
+    };
+
+    unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
 }
