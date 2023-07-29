@@ -205,7 +205,6 @@ pub fn create_vk_swapchain(
         capabilities: vk::SurfaceCapabilitiesKHR,
         surface_format: &vk::SurfaceFormatKHR,
         present_mode: &vk::PresentModeKHR,
-        image_count: u32,
         extent: &vk::Extent2D,
     ) -> (khr::Swapchain, vk::SwapchainKHR)
 {
@@ -217,7 +216,7 @@ pub fn create_vk_swapchain(
         p_next: std::ptr::null(),
         flags: vk::SwapchainCreateFlagsKHR::empty(),
         surface: surface.handle,
-        min_image_count: image_count,
+        min_image_count: choose_vk_swap_image_count(capabilities),
         image_color_space: surface_format.color_space,
         image_format: surface_format.format,
         image_extent: *extent,
@@ -240,7 +239,7 @@ pub fn create_vk_swapchain(
     };
 
     log_info!("VkSwapchainKHR created");
-    
+
     (swapchain_loader, swapchain_handle)
 }
 

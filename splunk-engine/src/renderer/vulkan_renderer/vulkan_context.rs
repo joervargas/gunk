@@ -100,10 +100,9 @@ impl VulkanSwapchain
     
         let format = choose_vk_swap_surface_format(details.formats);
         let present_mode = choose_vk_swap_present_mode(details.present_modes);
-        let image_count = choose_vk_swap_image_count(details.capabilities);
         let extent = vk::Extent2D{ width: width, height: height };
 
-        let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, details.capabilities, &format, &present_mode, image_count, &extent);
+        let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, details.capabilities, &format, &present_mode, &extent);
         let images = unsafe 
         {
             loader.get_swapchain_images(handle).map_err( |e| { log_err!(e); } ).unwrap()    
@@ -117,7 +116,7 @@ impl VulkanSwapchain
         }
 
         log_info!("VulkanSwapchain struct created");
-        
+
         Self
         {
             loader,
