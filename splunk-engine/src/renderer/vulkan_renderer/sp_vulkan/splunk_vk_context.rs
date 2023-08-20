@@ -1,19 +1,20 @@
 use ash::{ vk, Device };
 use gpu_allocator::vulkan::Allocator;
 
-use crate::{log_err, log_info};
+use crate::{log_err, log_info, vk_check};
 
 use super::vk_utils::*;
 
-use super::vulkan_loader::VulkanLoader;
+use super::splunk_vk_loader::SpVkLoader;
+use super::splunk_vk_img::create_vk_image_view;
 
-pub struct VulkanQueue
+pub struct SpVkQueue
 {
     pub index: Option<u32>,
     pub handle: vk::Queue,
 }
 
-impl VulkanQueue
+impl SpVkQueue
 {
     fn new() -> Self
     {
@@ -25,18 +26,18 @@ impl VulkanQueue
     }
 }
 
-pub struct VulkanQueues
+pub struct SpVkQueues
 {
-    pub graphics: VulkanQueue,
+    pub graphics: SpVkQueue,
 }
 
-impl VulkanQueues
+impl SpVkQueues
 {
     pub fn new() -> Self
     { 
         Self
         { 
-            graphics: VulkanQueue::new() 
+            graphics: SpVkQueue::new() 
         } 
     } 
 
@@ -44,7 +45,7 @@ impl VulkanQueues
     {
         let device_queue_families = unsafe { instance.get_physical_device_queue_family_properties(*physical_device) };
 
-        let mut graphics = VulkanQueue::new();
+        let mut graphics = SpVkQueue::new();
         let mut index: u32 = 0;
         for queue_family in device_queue_families.iter()
         {
@@ -81,7 +82,7 @@ impl VulkanQueues
 
 }
 
-pub struct VulkanSwapchain
+pub struct SpVkSwapchain
 {
     pub loader: ash::extensions::khr::Swapchain,
     pub handle: vk::SwapchainKHR,
@@ -91,9 +92,9 @@ pub struct VulkanSwapchain
     pub extent: vk::Extent2D
 }
 
-impl VulkanSwapchain
+impl SpVkSwapchain
 {
-    pub fn new(loader: &VulkanLoader, device: &ash::Device, physical_device: &vk::PhysicalDevice, queue_indices: &Vec<u32>,  width: u32, height: u32) -> Self
+    pub fn new(loader: &SpVkLoader, device: &ash::Device, physical_device: &vk::PhysicalDevice, queue_indices: &Vec<u32>,  width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanSwapchain struct...");
         let details = query_vk_swapchain_details(physical_device, &loader.surface);
@@ -141,27 +142,52 @@ impl VulkanSwapchain
     }
 }
 
-pub struct VulkanContext
+pub struct  SpVkCommands
+{
+    pub pool: vk::CommandPool,
+    pub buffers: Vec<vk::CommandBuffer>
+}
+
+impl SpVkCommands
+{
+    pub fn new(device: &ash::Device, queue_family_index: u32, buffer_count: u32) -> Self
+    {
+        let pool = create_vk_command_pool(device, queue_family_index);
+        let buffers = allocate_vk_command_buffers(device, &pool, buffer_count);
+
+        Self{ pool, buffers }
+    }
+
+    pub fn destroy(&self, device: &ash::Device)
+    {
+        unsafe
+        {
+            device.destroy_command_pool(self.pool, None);
+        }
+    }
+}
+
+pub struct SpVkContext
 {
     pub device: Device,
     pub physical_device: vk::PhysicalDevice,
     pub allocator: Allocator,
-
-    pub queues: VulkanQueues,
-
-    pub swapchain: VulkanSwapchain,
-
+    pub queues: SpVkQueues,
+    pub swapchain: SpVkSwapchain,
+    pub draw_cmds: SpVkCommands,
+    pub render_semaphore: vk::Semaphore,
+    pub wait_semaphore: vk::Semaphore,
 }
 
-impl VulkanContext
+impl SpVkContext
 {
-    pub fn new(loader: &VulkanLoader, width: u32, height: u32) -> Self
+    pub fn new(loader: &SpVkLoader, width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanContext...");
 
         let physical_device = find_suitable_vk_physical_device(&loader.instance, &loader.surface);
         
-        let mut queues = VulkanQueues::new();
+        let mut queues = SpVkQueues::new();
         queues.query_indices(&loader.instance, &physical_device);
 
         let queue_index_list = queues.get_index_list();
@@ -170,7 +196,12 @@ impl VulkanContext
 
         let allocator = create_vk_allocator(&loader.instance, &physical_device, &device);
 
-        let swapchain = VulkanSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
+        let swapchain = SpVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
+
+        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), swapchain.images.len() as u32);
+        
+        let render_semaphore = create_vk_semaphore(&device);
+        let wait_semaphore = create_vk_semaphore(&device);
 
         log_info!("VulkanContext created");
         Self
@@ -179,7 +210,10 @@ impl VulkanContext
             physical_device,
             allocator,
             queues,
-            swapchain
+            swapchain,
+            draw_cmds,
+            render_semaphore,
+            wait_semaphore
         }
     }
 
@@ -189,6 +223,7 @@ impl VulkanContext
         // drop(self.allocator);
 
         self.swapchain.destroy(&self.device);
+        self.draw_cmds.destroy(&self.device);
         unsafe
         {
             self.device.destroy_device(None);
@@ -197,3 +232,54 @@ impl VulkanContext
 
 }
 
+
+pub fn sp_begin_single_time_vk_command_buffer(vk_ctx: &SpVkContext) -> vk::CommandBuffer
+{
+    let alloc_info = vk::CommandBufferAllocateInfo
+    {
+        s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
+        p_next: std::ptr::null(),
+        command_pool: vk_ctx.draw_cmds.pool,
+        level: vk::CommandBufferLevel::PRIMARY,
+        command_buffer_count: 1
+    };
+    let cmd_buffer = unsafe{ vk_check!(vk_ctx.device.allocate_command_buffers(&alloc_info)).unwrap()[0] };
+
+    let begin_info = vk::CommandBufferBeginInfo
+    {
+        s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
+        p_next: std::ptr::null(),
+        flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+        p_inheritance_info: std::ptr::null()
+    };
+    unsafe{ vk_check!(vk_ctx.device.begin_command_buffer(cmd_buffer, &begin_info)).unwrap() }
+
+    cmd_buffer
+}
+
+pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk::CommandBuffer)
+{
+    unsafe { vk_check!(vk_ctx.device.end_command_buffer(cmd_buffer)).unwrap(); }
+
+    let submit_info = [vk::SubmitInfo
+    {
+        s_type: vk::StructureType::SUBMIT_INFO,
+        p_next: std::ptr::null(),
+        wait_semaphore_count: 0,
+        p_wait_semaphores: std::ptr::null(),
+        p_wait_dst_stage_mask: std::ptr::null(),
+        command_buffer_count: 1,
+        p_command_buffers: &cmd_buffer,
+        signal_semaphore_count: 0,
+        p_signal_semaphores: std::ptr::null()
+    }];
+
+    unsafe 
+    {
+        vk_check!(vk_ctx.device.queue_submit(vk_ctx.queues.graphics.handle, &submit_info, vk::Fence::null())).unwrap();
+    
+        vk_check!(vk_ctx.device.queue_wait_idle(vk_ctx.queues.graphics.handle)).unwrap();
+
+        vk_ctx.device.free_command_buffers(vk_ctx.draw_cmds.pool, &[cmd_buffer]);
+    }
+}

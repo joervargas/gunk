@@ -3,11 +3,11 @@ use ash::{
     extensions::khr
 };
 
-use super::vulkan_loader::AshVkSurface;
+use super::splunk_vk_loader::SpVkSurface;
 use crate::{ vk_check, log_info, log_err };
 
 
-pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &AshVkSurface, physical_device: vk::PhysicalDevice) -> bool
+pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &SpVkSurface, physical_device: vk::PhysicalDevice) -> bool
 {
 
     let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
@@ -36,7 +36,7 @@ pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &AshVkS
 }
 
 
-pub fn find_suitable_vk_physical_device(instance: &ash::Instance, surface: &AshVkSurface) -> vk::PhysicalDevice
+pub fn find_suitable_vk_physical_device(instance: &ash::Instance, surface: &SpVkSurface) -> vk::PhysicalDevice
 {
     log_info!("Finding suitable VkPhysicalDevice...");
 
@@ -146,7 +146,7 @@ pub struct SwapchainDetails
     pub present_modes: Vec<vk::PresentModeKHR>
 }
 
-pub fn query_vk_swapchain_details(physical_device: &vk::PhysicalDevice, surface: &AshVkSurface) -> SwapchainDetails
+pub fn query_vk_swapchain_details(physical_device: &vk::PhysicalDevice, surface: &SpVkSurface) -> SwapchainDetails
 {
     let capabilities = unsafe
     {
@@ -200,7 +200,7 @@ pub fn choose_vk_swap_image_count(capabilities: vk::SurfaceCapabilitiesKHR) -> u
 pub fn create_vk_swapchain(
         instance: &ash::Instance,
         device: &ash::Device,
-        surface: &AshVkSurface, 
+        surface: &SpVkSurface, 
         queue_indices: &Vec<u32>,
         capabilities: vk::SurfaceCapabilitiesKHR,
         surface_format: &vk::SurfaceFormatKHR,
@@ -243,26 +243,46 @@ pub fn create_vk_swapchain(
     (swapchain_loader, swapchain_handle)
 }
 
-pub fn create_vk_image_view(device: &ash::Device, image: &vk::Image, format: &vk::Format, aspect_flags: vk::ImageAspectFlags, view_type: vk::ImageViewType, layer_count: u32, mip_levels: u32) -> vk::ImageView
+pub fn create_vk_command_pool(device: &ash::Device, queue_family_index: u32) -> vk::CommandPool
 {
-    let create_info = vk::ImageViewCreateInfo
+    let create_info = vk::CommandPoolCreateInfo
     {
-        s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+        s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
         p_next: std::ptr::null(),
-        flags: vk::ImageViewCreateFlags::empty(),
-        image: *image,
-        view_type: view_type,
-        format: *format,
-        subresource_range: vk::ImageSubresourceRange
-        {
-            aspect_mask: aspect_flags,
-            base_mip_level: 0,
-            level_count: mip_levels,
-            base_array_layer: 0,
-            layer_count: layer_count,
-        },
-        ..Default::default()
+        flags: vk::CommandPoolCreateFlags::empty(),
+        queue_family_index: queue_family_index,
     };
 
-    unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
+    unsafe{
+        vk_check!(device.create_command_pool(&create_info, None)).unwrap()
+    }
+}
+
+pub fn allocate_vk_command_buffers(device: &ash::Device, cmd_pool: &vk::CommandPool, buffer_count: u32 ) -> Vec<vk::CommandBuffer>
+{
+    let alloc_info = vk::CommandBufferAllocateInfo
+    {
+        s_type: vk::StructureType::COMMAND_BUFFER_ALLOCATE_INFO,
+        p_next: std::ptr::null(),
+        command_pool: *cmd_pool,
+        level: vk::CommandBufferLevel::PRIMARY,
+        command_buffer_count: buffer_count
+    };
+
+    unsafe{
+        vk_check!(device.allocate_command_buffers(&alloc_info)).unwrap()
+    }
+}
+
+pub fn create_vk_semaphore(device: &ash::Device) -> vk::Semaphore
+{
+    let create_info = vk::SemaphoreCreateInfo
+    {
+        s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
+        p_next: std::ptr::null(),
+        flags: vk::SemaphoreCreateFlags::empty()
+    };
+    unsafe {
+        vk_check!(device.create_semaphore(&create_info, None)).unwrap()
+    }
 }

@@ -20,13 +20,13 @@ pub const VALIDATION: bool = true;
 #[cfg(not(debug_assertions))]
 pub const VALIDATION: bool = false;
 
-pub struct AshVkDebugLayers
+pub struct SpVkDebugLayers
 {
     pub utils: DebugUtils,
     pub messenger: vk::DebugUtilsMessengerEXT,
 }
 
-impl AshVkDebugLayers
+impl SpVkDebugLayers
 {
         /// Creates debug utils for validation layer callbacks
     pub fn new(entry: &Entry, instance: &Instance) -> Self
@@ -69,13 +69,13 @@ impl AshVkDebugLayers
 
 }
 
-pub struct AshVkSurface
+pub struct SpVkSurface
 {
     pub loader: Surface,
     pub handle: vk::SurfaceKHR
 }
 
-impl AshVkSurface
+impl SpVkSurface
 {
     pub fn new(window: &Window, entry: &Entry, instance: &Instance) -> Self
     {
@@ -92,15 +92,15 @@ impl AshVkSurface
     }
 }
 
-pub struct VulkanLoader
+pub struct SpVkLoader
 {
     pub entry: Entry,
     pub instance: Instance,
-    pub debug_layer: Option<AshVkDebugLayers>,
-    pub surface: AshVkSurface
+    pub debug_layer: Option<SpVkDebugLayers>,
+    pub surface: SpVkSurface
 }
 
-impl VulkanLoader
+impl SpVkLoader
 {
     /// Creates a VulkanLoader Struct
     pub fn new(window: &Window, app_name: CString, app_version: u32) -> Self
@@ -111,13 +111,13 @@ impl VulkanLoader
         let engine_version = vk::make_api_version(0, 0, 1, 0);
         let instance = create_vk_instance(window, &entry, app_name, app_version, engine_name, engine_version);
 
-        let mut debug_layer: Option<AshVkDebugLayers> = None;
+        let mut debug_layer: Option<SpVkDebugLayers> = None;
         if VALIDATION
         {
-            debug_layer = Some(AshVkDebugLayers::new(&entry, &instance));
+            debug_layer = Some(SpVkDebugLayers::new(&entry, &instance));
         }
 
-        let surface = AshVkSurface::new(&window, &entry, &instance);
+        let surface = SpVkSurface::new(&window, &entry, &instance);
 
         Self
         {
