@@ -10,17 +10,43 @@ use bitflags::bitflags;
 
 
 bitflags! {
+    /// ### ERenderPassBit: u32 struct
+    /// *Contains bitwise flags*
+    /// <pre>
+    /// - Members
+    ///     NONE                    0x00
+    ///     FIRST                   0x01
+    ///     LAST                    0x02
+    ///     OFFSCREEN               0x04
+    ///     OFFSCREEN_INTERNAL      0x08
+    /// </pre>
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct ERenderPassBit: u32
     {
+        /// ERenderPassBit::NONE = 0x00
         const NONE = 0x00;
+        /// ERenderPassBit::FIRST = 0x01
         const FIRST = 0x01;
+        /// ERenderPassBit::LAST = 0x02
         const LAST = 0x02;
+        /// ERenderPassBit::OFFSCREEN = 0x04
         const OFFSCREEN = 0x04;
+        /// ERenderPassBit::OFFSCREEN_INTERNAL = 0x08
         const OFFSCREEN_INTERNAL = 0x08;
     }
 }
 
+/// ### SpVkRenderPassInfo struct
+/// *Details that describe the VkRenderPass*
+/// <pre>
+/// - Members
+///     b_use_color:        bool
+///     b_clear_color:      bool
+///     color_format:       vk::Format
+///     b_use_depth:        bool
+///     b_clear_depth:      bool
+///     flags:              ERenderPassBit
+/// </pre>
 pub struct SpVkRenderPassInfo
 {
     pub b_use_color: bool,
@@ -31,12 +57,29 @@ pub struct SpVkRenderPassInfo
     pub flags: ERenderPassBit
 }
 
+/// ### SpVkRenderPass struct
+/// *Contains VkRenderPass handle and details describing it.*
+/// <pre>
+/// - Members
+///     info:       SpVkRenderPassInfo
+///     handle:     vk::RenderPass
+/// </pre>
 pub struct SpVkRenderPass
 {
     pub info: SpVkRenderPassInfo,
     pub handle: vk::RenderPass
 }
 
+/// ### fn sp_create_vk_renderpass( ... ) -> SpVkRenderPass
+/// *Creates an instance of SpVkRenderPass.*
+/// <pre>
+/// - Params
+///     instance:       &ash::Instance
+///     vk_ctx:         &SpVkContext
+///     info:           &SpVkRenderPassInfo
+/// - Return
+///     SpVkRenderpass
+/// </pre>
 pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, info: SpVkRenderPassInfo) -> SpVkRenderPass
 {
     let offscreen_internal: bool = (info.flags & ERenderPassBit::OFFSCREEN_INTERNAL) != ERenderPassBit::NONE;

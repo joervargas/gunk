@@ -6,7 +6,15 @@ use shaderc::ShaderKind;
 
 use crate::log_err;
 
-
+/// ### fn is_extension( ... ) -> bool
+/// *Compares a files extension to the string provided.*
+/// <pre>
+/// - Params
+///     file_name:      &std::path::Path    <i>// file_name to check</i>
+///     file_ext:       &str                <i>// file_ext to check against</i>
+/// - Return
+///     bool    <i>True if the provided file_ext string matches that on the file_name</i>
+/// </pre>
 fn is_extension(file_name: &std::path::Path, file_ext: &str) -> bool
 {
     if file_name.extension().unwrap().to_str().unwrap() == file_ext 
@@ -17,7 +25,15 @@ fn is_extension(file_name: &std::path::Path, file_ext: &str) -> bool
     }
 }
 
-fn read_shader_file(file_name: &std::path::Path) -> String
+/// ### fn read_file_to_string( ... ) -> String
+/// *Reads and returns the contents of a file to type String.*
+/// <pre>
+/// - Params
+///     file_name:      &std::path::Path
+/// - Return
+///     String
+/// </pre>
+fn read_file_to_string(file_name: &std::path::Path) -> String
 {
     let mut file = std::fs::File::open(file_name).map_err(|e| {log_err!(e);} )
         .expect(format!("Unable to open file {}", file_name.to_str().unwrap()).as_str());
@@ -29,6 +45,14 @@ fn read_shader_file(file_name: &std::path::Path) -> String
     code
 }
 
+/// ### fn get_shaderc_shaderkind_from_filename( ... ) -> shaderc::ShaderKind
+/// *Get the shaderc::ShaderKind from file name.*
+/// <pre>
+/// - Param
+///     file_name:      &std::path::Path
+/// - Return
+///     shaderc::ShaderKind
+/// </pre>
 pub fn get_shaderc_shaderkind_from_filename(file_name: &std::path::Path) -> ShaderKind
 {
     if is_extension(&file_name, "vert") { return ShaderKind::Vertex; }
@@ -43,6 +67,14 @@ pub fn get_shaderc_shaderkind_from_filename(file_name: &std::path::Path) -> Shad
     panic!("Shader file extension not supported!");
 }
 
+/// ### fn get_vk_shader_stage_from_shaderc_shaderkind( ... ) -> vk::ShaderStageFlags
+/// *Get the vk::ShaderStageFlags from shaderc::ShaderKind*
+/// <pre>
+/// - Param
+///     shader_kind:     shaderc::ShaderKind
+/// - Return
+///     vk::ShaderStageFlags
+/// </pre>
 pub fn get_vk_shader_stage_from_shaderc_shaderkind(shader_kind: ShaderKind) -> vk::ShaderStageFlags
 {
     match shader_kind
@@ -60,6 +92,14 @@ pub fn get_vk_shader_stage_from_shaderc_shaderkind(shader_kind: ShaderKind) -> v
     }
 }
 
+/// ### fn get_vk_shader_stage_from_filename( ... ) -> vk::ShaderStageFlags
+/// *Get vk::ShaderStageFlags from file_name*
+/// <pre>
+/// - Params
+///     file_name:      &std::path::Path
+/// - Return
+///     vk::ShaderStageFlags
+/// </pre>
 pub fn get_vk_shader_stage_from_filename(file_name: &std::path::Path) -> vk::ShaderStageFlags
 {
     get_vk_shader_stage_from_shaderc_shaderkind(get_shaderc_shaderkind_from_filename(file_name))

@@ -22,6 +22,21 @@ use super::splunk_vk_context::{
 
 use std::ffi::c_void;
 
+/// ### fn create_vk_image( ... ) -> (vk::Image, vulkan::Allocation)
+/// *Creates a vk::Image and an Allocation for memory)
+/// <pre>
+/// - Param
+///     device:
+///     width:
+///     height:
+///     format:
+///     tiling:
+///     usage:
+///     create_flags:
+///     mip_levels:
+/// - Return
+///     (vk::Image, vulkan::Allocation)
+/// </pre>
 pub fn create_vk_image(
         device: &ash::Device, allocator: &mut Allocator, label: &str, 
         width: u32, height: u32, 
@@ -78,6 +93,20 @@ pub fn create_vk_image(
     (img, allocation)
 }
 
+/// ### fn create_vk_image_view( ... ) -> vk::ImageView
+/// *Creates a vk::ImageView*
+/// <pre>
+/// - Params
+///     device:             &ash::Device
+///     image:              &vk::Image
+///     format:             &vk::Format
+///     aspect_flags:       vk::ImageAspectFlags
+///     view_type:          vk::ImageViewType
+///     layer_count:        u32
+///     mip_levels:         u32
+/// - Return
+///     vk::ImageView
+/// </pre>
 pub fn create_vk_image_view(
         device: &ash::Device, image: &vk::Image, 
         format: &vk::Format, aspect_flags: vk::ImageAspectFlags, 
@@ -106,6 +135,14 @@ pub fn create_vk_image_view(
     unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
 }
 
+/// ### fn create_vk_sampler( ... ) -> vk::Sampler
+/// *Creates a vk::Sampler*
+/// <pre>
+/// - Params
+///     device:     &ash::Device
+/// - Return
+///     vk::Sampler
+/// </pre>
 pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
 {
     let create_info = vk::SamplerCreateInfo
@@ -133,6 +170,19 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
     unsafe{ vk_check!(device.create_sampler(&create_info, None)).unwrap() }
 }
 
+/// ### fn find_supported_vk_format( ... ) -> vk::Format
+/// *Loops through supplied candidate formats. <br>
+/// Determines best one based on Tiling and and format features.*
+/// <pre>
+/// - Params
+///     instance:           &ash::Instance
+///     phys_device:        &vk::PhysicalDevice
+///     candidates:         &Vec&lt;vk::Format&gt;          <i>// Candidate formats to loop through.</i>
+///     tiling:             vk::ImageTiling
+///     features:           vk::FormatFeatureFlags
+/// - Return
+///     vk::Format
+/// </pre>
 pub fn find_supported_vk_format(instance: &ash::Instance, phys_device: &vk::PhysicalDevice, candidates: &Vec<vk::Format>, tiling: vk::ImageTiling, features: vk::FormatFeatureFlags) -> vk::Format
 {
     for format in candidates.iter()
@@ -153,12 +203,38 @@ pub fn find_supported_vk_format(instance: &ash::Instance, phys_device: &vk::Phys
     panic!("Fn 'find_supported_vk_format()' Failed to find supported format!");
 }
 
+/// ### fn has_vk_stencil_component( ... ) -> bool
+/// *Determines whether the given vk::Format has stencil capabilities.*
+/// <pre>
+/// - Params
+///     format:     vk::Format
+/// - Return
+///     bool
+/// </pre>
 pub fn has_vk_stencil_component(format: vk::Format) -> bool
 {
     format == vk::Format::D32_SFLOAT_S8_UINT || format == vk::Format::D24_UNORM_S8_UINT
 }
 
-pub fn transition_vk_image_layout( device: &ash::Device, cmd_buffer: &vk::CommandBuffer, img: vk::Image, format: vk::Format, old_layout: vk::ImageLayout, new_layout: vk::ImageLayout, layer_count: u32, mip_levels: u32)
+/// ### transition_vk_image_layout( ... )
+/// *Transitions a vk::Image to a new layout*
+/// <pre>
+/// - Params
+///     device:         &ash::Device
+///     cmd_buffer:     &vk::CommandBuffer
+///     img:            vk::Image
+///     format:         vk::Format
+///     old_layout:     vk::ImageLayout         <i>// Current image layout.</i>
+///     new_layout:     vk::ImageLayout         <i>// Desired image layout.</i>
+///     layer_count:    u32
+///     mip_levels:     u32
+/// </pre>
+pub fn transition_vk_image_layout( 
+        device: &ash::Device, cmd_buffer: &vk::CommandBuffer, 
+        img: vk::Image, format: vk::Format, 
+        old_layout: vk::ImageLayout, new_layout: vk::ImageLayout, 
+        layer_count: u32, mip_levels: u32
+    )
 {
     let mut barrier = vk::ImageMemoryBarrier
     {
@@ -313,6 +389,18 @@ pub fn transition_vk_image_layout( device: &ash::Device, cmd_buffer: &vk::Comman
     }
 }
 
+/// ### fn copy_vk_buffer_to_img( ... )
+/// *Copies vk::Buffer contents to a vk::Image*
+/// <pre>
+/// - Params
+///     device:         &ash::Device
+///     cmd_buffer:     &vk::CommandBuffer
+///     buffer:         &vk::Buffer
+///     img:            &vk::Image
+///     width:          u32
+///     height:         u32
+///     layer_count:    u32
+/// </pre>
 pub fn copy_vk_buffer_to_img(
         device: &ash::Device, cmd_buffer: &vk::CommandBuffer, 
         buffer: &vk::Buffer, img: &vk::Image, 
@@ -344,7 +432,16 @@ pub fn copy_vk_buffer_to_img(
     }
 }
 
-pub fn find_vk_format_depth_img(instance:&ash::Instance, phys_device: &vk::PhysicalDevice) -> vk::Format
+/// ### fn find_vk_format_depth_img( ... ) -> vk::Format
+/// *Finds a suitable format for a depth image texture*
+/// <pre>
+/// - Params
+///     instance:       &ash::Instance
+///     phys_device:    &vk::PhysicalDevice
+/// - Return
+///     vk::Format      <i>// A format suitable for a depth image texture.*
+/// </pre>
+pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::PhysicalDevice) -> vk::Format
 {
     find_supported_vk_format(
         instance, phys_device, 
@@ -354,6 +451,14 @@ pub fn find_vk_format_depth_img(instance:&ash::Instance, phys_device: &vk::Physi
     )
 }
 
+/// ### struct SpVkImage
+/// *A convenience struct. has the image, memory allocation, and view*
+/// <pre>
+/// - Members
+///     handle:     &vk::Image
+///     alloc:      vulkan::Allocation
+///     view:       vk::ImageView
+/// </pre>
 pub struct SpVkImage
 {
     pub handle: vk::Image,
@@ -361,6 +466,15 @@ pub struct SpVkImage
     pub view: vk::ImageView,
 }
 
+/// ### sp_create_vk_image( ... ) -> SpVkImage
+/// *Creates a generic SpVkImage from a given file_name.*
+/// <pre>
+/// - Params
+///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     file_name:      &str
+/// - Return
+///     SpVkImage
+/// </pre>
 pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImage
 {
     let img = image::open(std::path::Path::new(file_name)).map_err( |e| { log_err!(e); } ).unwrap();
@@ -425,6 +539,15 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
     SpVkImage { handle, alloc, view }
 }
 
+/// ### fn sp_create_vk_depth_img( ... ) -> SpVkImage
+/// *Creates an SpVkImage used for depth textures.*
+/// <pre>
+/// - Params
+///     instance:       &ash::Instance
+///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     width:          u32
+///     height:         u32
+/// </pre>
 pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext, width: u32, height: u32) -> SpVkImage
 {
     let format = find_vk_format_depth_img(instance, &vk_ctx.physical_device);
@@ -453,6 +576,13 @@ pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext
     SpVkImage { handle: img, alloc, view }
 }
 
+/// ### fn sp_destroy_vk_img( ... )
+/// *Destroys the given instance of SpVkImage*
+/// <pre>
+/// - Param
+///     vk_ctx:     &mut SpVkContext
+///     img:        SpVkImage           <i>// SpVkImage to be destroyed.</i>
+/// </pre>
 pub fn sp_destroy_vk_img(vk_ctx: &mut SpVkContext, img: SpVkImage)
 {
     unsafe

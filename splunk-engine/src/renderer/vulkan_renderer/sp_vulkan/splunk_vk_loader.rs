@@ -20,6 +20,13 @@ pub const VALIDATION: bool = true;
 #[cfg(not(debug_assertions))]
 pub const VALIDATION: bool = false;
 
+/// ### SpVkDebugLayers
+/// *Used for validation layer messages*
+/// <pre>
+/// - Members
+///     utils:          ext::DebugUtils             <i>// Creates and destroys messenger</i>
+///     messenger:      vk::DebugUtilsMessengerEXT  <i>// Responsible for validation layer messages</i>
+/// </pre>
 pub struct SpVkDebugLayers
 {
     pub utils: DebugUtils,
@@ -28,7 +35,15 @@ pub struct SpVkDebugLayers
 
 impl SpVkDebugLayers
 {
-        /// Creates debug utils for validation layer callbacks
+    /// ### fn SpVkDebugLayers::new( ... ) -> SpVkDebugLayers
+    /// *Creates an instance of SpVkDebugLayers*
+    /// <pre>
+    /// - Params
+    ///     entry:      &ash::Entry
+    ///     instance:   &ash::Instance
+    /// - Return
+    ///     SpVkDebuLayers
+    /// </pre>
     pub fn new(entry: &Entry, instance: &Instance) -> Self
     {
         let utils = ash::extensions::ext::DebugUtils::new(entry, instance);
@@ -62,6 +77,12 @@ impl SpVkDebugLayers
         }
     }
 
+    /// ### fn SpVkDebugLayers::destroy(&self)
+    /// *Destroys an instance of SpVkDebugLayers*
+    /// <pre>
+    /// - Param
+    ///     <b>&self</b>
+    /// </pre>
     pub fn destroy(&self)
     {
         unsafe { self.utils.destroy_debug_utils_messenger(self.messenger, None); }
@@ -69,6 +90,14 @@ impl SpVkDebugLayers
 
 }
 
+/// ### SpVkSurface struct
+/// *The surface is responsible for the drawing on the screen*
+/// *VkSurface convenience struct*
+/// <pre>
+/// - Members
+///     loader:     khr::Surface        <i>// Creates and destroys surface handle</i>
+///     handle:     vk::SurfaceKHR      <i>// VkSurfaceKHR handle</i>
+/// </pre>
 pub struct SpVkSurface
 {
     pub loader: Surface,
@@ -77,6 +106,16 @@ pub struct SpVkSurface
 
 impl SpVkSurface
 {
+    /// ### fn SpVkSurface::new( ... ) -> SpVkSurface
+    /// *Creates an instance of SpVkSurface*
+    /// <pre>
+    /// - Params
+    ///     window:         &winit::window::Window
+    ///     entry:          &ash::Entry
+    ///     instance:       &ash::Instance
+    /// - Return
+    ///     SpVkSurface
+    /// </pre>
     pub fn new(window: &Window, entry: &Entry, instance: &Instance) -> Self
     {
         let loader = Surface::new(&entry, &instance);
@@ -86,12 +125,27 @@ impl SpVkSurface
         Self{ loader, handle }
     }
 
+    /// ### fn SpVkSurface::destroy(&self)
+    /// *Destroys instance of SpVkSurface*
+    /// <pre>
+    /// - Param
+    ///     <b>&self</b>
+    /// </pre>
     pub fn destroy(&self)
     {
         unsafe { self.loader.destroy_surface(self.handle, None); }
     }
 }
 
+/// ### SpVkLoader struct
+/// *Contains handles necessary to load and debug vulkan*
+/// <pre>
+/// - Members
+///     entry:          &ash::Entry
+///     instance:       &ash::Instance
+///     debug_layer:    Option&lt;SpVkDebugLayers&gt;
+///     surface:        SpVkSurface
+/// </pre>
 pub struct SpVkLoader
 {
     pub entry: Entry,
@@ -102,7 +156,17 @@ pub struct SpVkLoader
 
 impl SpVkLoader
 {
-    /// Creates a VulkanLoader Struct
+    
+    /// ### fn SpVkLoader::new( ... ) -> SpVkLoader
+    /// *Creates an instance SpVkLoader struct. Loads vulkan and debuggers.*
+    /// <pre>
+    /// - Param
+    ///     window:         &winit::window::Window
+    ///     app_name:       CString
+    ///     app_version:    u32
+    /// - Return
+    ///     SpVkLoader
+    /// </pre>
     pub fn new(window: &Window, app_name: CString, app_version: u32) -> Self
     {
         let entry = unsafe { Entry::load().map_err(|e| { log_err!(e); } ).unwrap() };
@@ -128,6 +192,12 @@ impl SpVkLoader
         }
     }
 
+    /// ### SpVkLoader::destroy(&self)
+    /// *Destroys an instance of SpVkLoader, destroying vulkan loaders, surface, and debuggers.*
+    /// <pre>
+    /// - Param
+    ///     <b>&self</b>
+    /// </pre>
     pub fn destroy(&self)
     {
         self.surface.destroy();
@@ -140,7 +210,19 @@ impl SpVkLoader
 }
 
 
-/// Creates a VkInstance handle
+/// ### fn create_vk_instance( ... ) -> ash::Instance
+/// *Creates a VkInstance handle*
+/// <pre>
+/// - Params
+///     window:             &winit::window::Window
+///     entry:              &ash::Entry
+///     app_name:           CString
+///     app_version:        u32
+///     engine_name:        CString
+///     engine_version:     u32
+/// - Return
+///     ash::Instance
+/// </pre>
 pub fn create_vk_instance(window: &Window, entry: &Entry, app_name: CString, app_version: u32, engine_name: CString, engine_version: u32) -> Instance
 {
     log_info!("Creating VkInstance handle...");
@@ -228,7 +310,15 @@ unsafe extern "system" fn vulkan_debug_callback(
 }
 
 
-/// Creates debug utils for validation layer callbacks
+/// ### fn create_debug_callback( ... ) -> (ext::DebugUtils, vk::definitions::DebugUtilsMessengerEXT)
+/// *Creates debug utils for validation layer callbacks*
+/// <pre>
+/// - Param
+///     entry: &ash::Entry
+///     instance: &ash::Instance
+/// - Return
+///     (ash::extensions::ext::DebugUtils, ash::vk::definitions::DebugUtilsMessengerEXT)
+/// </pre>
 pub fn create_debug_callback(entry: &Entry, instance: &Instance) -> (DebugUtils, DebugUtilsMessengerEXT)
 {
     let debut_utils_loader = ash::extensions::ext::DebugUtils::new(entry, instance);
