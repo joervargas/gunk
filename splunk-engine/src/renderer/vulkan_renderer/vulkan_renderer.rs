@@ -1,9 +1,13 @@
 use crate::renderer::renderer_utils;
 
+use ash::{self, vk};
+use gpu_allocator::vulkan::Allocation;
+
 use super::sp_vulkan::{
     splunk_vk_loader::SpVkLoader, 
     splunk_vk_context::SpVkContext
 };
+use super::vk_render_layers::sp_vk_render_layer::SpVkRenderLayer;
 
 use winit::window::Window;
 use std::ffi::CString;
@@ -12,7 +16,9 @@ pub struct VulkanRenderer
 {
     pub loader: SpVkLoader,
     pub ctx: SpVkContext,
-
+    pub layers: Vec<Box<dyn SpVkRenderLayer>>,
+    pub transform_buffers: Vec<vk::Buffer>, // Uniform buffers
+    pub transform_allocs: Vec<Allocation>
 }
 
 impl VulkanRenderer
@@ -24,7 +30,10 @@ impl VulkanRenderer
         let inner_size = window.inner_size();
         let ctx = SpVkContext::new(&loader, inner_size.width, inner_size.height);
 
-        Self{ loader, ctx }
+        let layers: Vec<Box<dyn SpVkRenderLayer>> = vec![];
+
+        // Self{ loader, ctx, layers }
+        todo!()
     }
 
 }

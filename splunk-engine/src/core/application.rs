@@ -10,16 +10,29 @@ use std::string::String;
 
 use crate::platform::main_loop;
 
+/// ### AppConfig struct
+/// *Configurations for Application and Window startup*
+/// <pre>
+/// - Members
+///     title:              String
+///     width:              u32
+///     height:             u32
+///     b_fullscreen:       bool    <i>// is fullscreen?
+///     b_resizeable:       bool    <i>// is resizable?
+///     b_border:           bool    <i>// has border?
+/// </pre>
 pub struct AppConfig
 {
     pub title: String,
     pub width: u32,
     pub height: u32,
-    pub is_fullscreen: bool,
-    pub is_resizable: bool,
-    pub has_border: bool,
+    pub b_fullscreen: bool, // is fullscreen
+    pub b_resizable: bool, // is resizable
+    pub b_border: bool,  // has border
 }
 
+/// ### Application struct
+/// *Contains members necessary for a functioning application*
 pub struct Application
 {
     pub config: AppConfig,
@@ -28,17 +41,25 @@ pub struct Application
 
 impl Application
 {
+    /// ### Application::new( ... ) -> (Application, EventLoop\<()\>)
+    /// *Creates an instance of the application.<br> Also return an EventLoop.*
+    /// <pre>
+    /// - Params
+    ///     config:     AppConfig
+    /// - Return
+    ///     (Application, EventLoop&lt;()&gt;)
+    /// </pre>
     pub fn new(config: AppConfig) -> (Self, EventLoop<()>)
     {
         let evloop: EventLoop<()> = EventLoop::new();
         let window: Window = Window::new(&evloop).unwrap();
 
-        if config.is_resizable
+        if config.b_resizable
         {
             window.set_resizable(true);
         }
 
-        if config.is_fullscreen
+        if config.b_fullscreen
         {
             let video_mode = window.current_monitor().unwrap().video_modes().next().unwrap();
             let fullscreen = Fullscreen::Exclusive(video_mode);
@@ -55,11 +76,20 @@ impl Application
         (app, evloop)
     }
     
+
     pub fn init(&mut self)
     {
 
     }
 
+    /// #### fn Application::run(self, ... )
+    /// *Application loop*
+    /// <pre>
+    /// <b><i>Note:</i></b> <i>Consumes self and evloop.</i>
+    /// - Params
+    ///     <b><i>self</i></b>
+    ///     evloop:     EventLoop&lt;()&gt;
+    /// </pre>
     pub fn run(self, evloop: EventLoop<()>)
     {
         main_loop(self, evloop);

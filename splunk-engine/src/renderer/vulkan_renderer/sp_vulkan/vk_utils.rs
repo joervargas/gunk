@@ -543,6 +543,16 @@ pub fn create_vk_pipeline_info_rasterization(
     }
 }
 
+/// ### fn create_vk_pipeline_multisample( ... ) -> vk::PipelineMultisampleStateCreateInfo
+/// *Creates a vk::PipelineMultisampleCreateInfo struct*
+/// <pre>
+/// - Params
+///     samples:            vk::SampleCountFlags
+///     b_sample_shading:   vk::Bool32
+///     min_sample_shading: f32
+/// - Return
+///     vk::PipelineMultisampleCreateInfo
+/// </pre>
 pub fn create_vk_pipeline_multisample(
         samples: vk::SampleCountFlags, 
         b_sample_shading: vk::Bool32, min_sample_shading: f32
@@ -558,6 +568,14 @@ pub fn create_vk_pipeline_multisample(
     }
 }
 
+/// ### fn create_vk_pipeline_info_color_blend_attachment( ... ) -> vk::PipelineColorBlendAttachmentState
+/// *Creates a vk::PipelineColorBlendAttachmentState struct*
+/// <pre>
+/// - Param
+///     b_use_blending:     bool
+/// - Return
+///     vk::PipelineColorBlendAttachmentState
+/// </pre>
 pub fn create_vk_pipeline_info_color_blend_attachment(b_use_blending: bool) -> vk::PipelineColorBlendAttachmentState
 {
     vk::PipelineColorBlendAttachmentState
@@ -577,6 +595,14 @@ pub fn create_vk_pipeline_info_color_blend_attachment(b_use_blending: bool) -> v
     }
 }
 
+/// ### fn create_vk_pipeline_info_color_blend( ... ) -> Vec<vk::PipelineColorBlendStateCreateInfo
+/// *Creates a vk::PipelineColorBlendStateCreateInfo struct*
+/// <pre>
+/// - Params
+///     attachments:    Vec&lt;vk::PipelineColorBlendStateCreateInfo&gt;
+/// - Return
+///     vk::PipelineColorBlendStateCreateInfo
+/// </pre>
 pub fn create_vk_pipeline_info_color_blend(attachments: Vec<vk::PipelineColorBlendAttachmentState>) -> vk::PipelineColorBlendStateCreateInfo
 {
     vk::PipelineColorBlendStateCreateInfo
@@ -591,6 +617,12 @@ pub fn create_vk_pipeline_info_color_blend(attachments: Vec<vk::PipelineColorBle
     }   
 }
 
+/// ### fn create_vk_pipeline_info_depth_stencil() -> vk::PipelineDepthStencilStateCreateInfo
+/// *Creates a vk::PipelineDepthStencilStateCreateInfo struct*
+/// <pre>
+/// - Return
+///     vk::PipelineDepthStencilStateCreateInfo
+/// </pre>
 pub fn create_vk_pipeline_info_depth_stencil() -> vk::PipelineDepthStencilStateCreateInfo
 {
     vk::PipelineDepthStencilStateCreateInfo
@@ -606,6 +638,14 @@ pub fn create_vk_pipeline_info_depth_stencil() -> vk::PipelineDepthStencilStateC
     }
 }
 
+/// ### fn create_vk_pipeline_info_dynamic_states( ... ) -> vk::PipelineDynamicStateCreateInfo
+/// *Creates a vk::PipelineDynamicStateCreateInfo struct*
+/// <pre>
+/// - Params
+///     dynamic_states:     Vec&lt;vk::DynamicState&gt;
+/// - Return
+///     vk::PipelineDynamicStateCreateInfo
+/// </pre>
 pub fn create_vk_pipeline_info_dynamic_states(dynamic_states: Vec<vk::DynamicState>) -> vk::PipelineDynamicStateCreateInfo
 {
     vk::PipelineDynamicStateCreateInfo
@@ -618,6 +658,14 @@ pub fn create_vk_pipeline_info_dynamic_states(dynamic_states: Vec<vk::DynamicSta
     }
 }
 
+/// ### fn create_vk_pipeline_info_tessellation( ... ) -> vk::PipelineTessellationStateCreateInfo
+/// *Creates a vk::PipelineTessellationStateCreateInfo struct*
+/// <pre>
+/// - Param
+///     num_patch_points:   u32
+/// - Return
+///     vk::PipelineTessellationStateCreateInfo
+/// </pre>
 pub fn create_vk_pipeline_info_tessellation(num_patch_points: u32) -> vk::PipelineTessellationStateCreateInfo
 {
     vk::PipelineTessellationStateCreateInfo

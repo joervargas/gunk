@@ -6,3 +6,4 @@ pub mod splunk_vk_render_pass;
 pub mod vk_macros;
 pub mod vk_utils;
 pub mod vk_shader_utils;
+pub mod vertex_data;

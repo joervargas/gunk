@@ -1,3 +1,3 @@
 pub mod sp_vulkan;
-pub mod sp_vk_render_layer;
+pub mod vk_render_layers;
 pub mod vulkan_renderer;

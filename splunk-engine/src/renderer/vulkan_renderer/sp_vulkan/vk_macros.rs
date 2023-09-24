@@ -1,5 +1,6 @@
 
-
+/// ### vk_check!( ... )
+/// *Logs an error if present in VkResult\<()\>*
 #[macro_export]
 macro_rules! vk_check {
     ( $vk_result:expr ) => 

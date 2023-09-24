@@ -10,7 +10,7 @@ use gpu_allocator::{
     }, 
 };
 
-use super::splunk_vk_buffer::create_vk_buffer;
+use super::splunk_vk_buffer::{create_vk_buffer, map_vk_allocation_data};
 
 use crate::{vk_check, log_err};
 
@@ -19,8 +19,6 @@ use super::splunk_vk_context::{
     sp_begin_single_time_vk_command_buffer, 
     sp_end_single_time_vk_command_buffer
 };
-
-use std::ffi::c_void;
 
 /// ### fn create_vk_image( ... ) -> (vk::Image, vulkan::Allocation)
 /// *Creates a vk::Image and an Allocation for memory)
@@ -41,7 +39,7 @@ pub fn create_vk_image(
         device: &ash::Device, allocator: &mut Allocator, label: &str, 
         width: u32, height: u32, 
         format: vk::Format, tiling: vk::ImageTiling, 
-        usage: vk::ImageUsageFlags, create_flags: vk::ImageCreateFlags, 
+        usage: vk::ImageUsageFlags, create_flags: vk::ImageCreateFlags,
         mip_levels: u32
     ) -> (vk::Image, Allocation)
 {
@@ -64,31 +62,18 @@ pub fn create_vk_image(
         initial_layout: vk::ImageLayout::UNDEFINED
     };
     let img = unsafe { vk_check!( device.create_image(&create_info, None) ).unwrap() };
-    
-    let mem_requirements = unsafe{ device.get_image_memory_requirements(img) };
-    
-    // let alloc_info = vk::MemoryAllocateInfo
-    // {
-    //     s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
-    //     p_next: std::ptr::null(),
-    //     allocation_size: mem_requirements.size,
-    //     ..Default::default()
-    // };
 
-    // let memory = unsafe{
-    //     let mem = vk_check!(device.allocate_memory(&alloc_info, None)).unwrap();
-    //     vk_check!(device.bind_image_memory(img, mem, 0)).unwrap();
-    //     mem
-    // };
+    let mem_requirements = unsafe{ device.get_image_memory_requirements(img) };
+
     let alloc_info = AllocationCreateDesc
     {
         name: label,
         requirements: mem_requirements,
-        location: MemoryLocation::CpuToGpu,
+        location: MemoryLocation::GpuOnly,
         linear: true,
-        allocation_scheme: AllocationScheme::GpuAllocatorManaged
+        allocation_scheme: AllocationScheme::DedicatedImage(img)
     };
-    let allocation = allocator.allocate(&alloc_info).map_err( |e| { log_err!(e); } ).unwrap();
+    let allocation = vk_check!(allocator.allocate(&alloc_info)).unwrap();
 
     (img, allocation)
 }
@@ -376,7 +361,7 @@ pub fn transition_vk_image_layout(
         src_stage = vk::PipelineStageFlags::NONE;
         dst_stage = vk::PipelineStageFlags::NONE;
     }
-    
+
     unsafe {
         device.cmd_pipeline_barrier(
             *cmd_buffer, 
@@ -455,7 +440,7 @@ pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::Phys
 /// *A convenience struct. has the image, memory allocation, and view*
 /// <pre>
 /// - Members
-///     handle:     &vk::Image
+///     handle:     vk::Image
 ///     alloc:      vulkan::Allocation
 ///     view:       vk::ImageView
 /// </pre>
@@ -464,6 +449,7 @@ pub struct SpVkImage
     pub handle: vk::Image,
     pub alloc: Allocation,
     pub view: vk::ImageView,
+    pub size: vk::DeviceSize,
 }
 
 /// ### sp_create_vk_image( ... ) -> SpVkImage
@@ -487,21 +473,19 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
     let label = String::from(format!("staging_allocation: {}", file_name));
     (staging_buffer, staging_allocation) = create_vk_buffer(
         &vk_ctx.device, &mut vk_ctx.allocator, label.as_str(), 
-        img_size, vk::BufferUsageFlags::TRANSFER_SRC);
+        img_size, 
+        vk::BufferUsageFlags::TRANSFER_SRC, 
+        MemoryLocation::CpuToGpu,
+    );
 
-    unsafe
-    {
-        let p_data = vk_ctx.device.map_memory(staging_allocation.memory(), staging_allocation.offset(), img_size, vk::MemoryMapFlags::empty()).map_err( |e| { log_err!(e); } ).unwrap();
-            p_data.copy_from_nonoverlapping(pixels.as_ptr() as *const c_void, pixels.len());    
-        vk_ctx.device.unmap_memory(staging_allocation.memory());
-    }
+    map_vk_allocation_data(&staging_allocation, pixels.as_slice(), pixels.len());
 
     let (handle, alloc) = create_vk_image(
         &vk_ctx.device, &mut vk_ctx.allocator, file_name, 
         img.width(), img.height(), vk::Format::R8G8B8A8_UNORM, 
         vk::ImageTiling::OPTIMAL, vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED, 
         vk::ImageCreateFlags::empty(), 1);
-    
+
     let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
 
         transition_vk_image_layout(
@@ -515,7 +499,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
             &staging_buffer, &handle, 
             img.width(), img.height(), 
             1);
-        
+
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
             handle, vk::Format::R8G8B8A8_UNORM, 
@@ -527,7 +511,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
     unsafe
     {
         vk_ctx.device.destroy_buffer(staging_buffer, None);
-        vk_ctx.allocator.free(staging_allocation).map_err(|e| { log_err!(e); }).unwrap();
+        vk_check!( vk_ctx.allocator.free(staging_allocation) ).unwrap()
     }
 
     let view = create_vk_image_view(
@@ -536,7 +520,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
         vk::ImageViewType::TYPE_2D, 
         1, 1);
 
-    SpVkImage { handle, alloc, view }
+    SpVkImage { handle, alloc, view, size: img_size }
 }
 
 /// ### fn sp_create_vk_depth_img( ... ) -> SpVkImage
@@ -573,7 +557,9 @@ pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext
             1, 1);
     sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
-    SpVkImage { handle: img, alloc, view }
+    let size : vk::DeviceSize = (std::mem::size_of::<u8>() as u32 * width * height) as vk::DeviceSize;
+
+    SpVkImage { handle: img, alloc, view, size }
 }
 
 /// ### fn sp_destroy_vk_img( ... )

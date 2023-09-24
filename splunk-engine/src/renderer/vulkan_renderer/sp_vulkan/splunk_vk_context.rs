@@ -1,7 +1,7 @@
 use ash::{ vk, Device };
 use gpu_allocator::vulkan::Allocator;
 
-use crate::{log_err, log_info, vk_check};
+use crate::{log_info, vk_check};
 
 use super::vk_utils::*;
 
@@ -179,7 +179,7 @@ impl SpVkSwapchain
         let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, details.capabilities, &format, &present_mode, &extent);
         let images = unsafe 
         {
-            loader.get_swapchain_images(handle).map_err( |e| { log_err!(e); } ).unwrap()    
+            vk_check!( loader.get_swapchain_images(handle) ).unwrap()
         };
 
         let mut views: Vec<vk::ImageView> = vec![];
@@ -312,7 +312,7 @@ impl SpVkContext
         log_info!("Creating VulkanContext...");
 
         let physical_device = find_suitable_vk_physical_device(&loader.instance, &loader.surface);
-        
+
         let mut queues = SpVkQueues::new();
         queues.query_indices(&loader.instance, &physical_device);
 
@@ -325,7 +325,7 @@ impl SpVkContext
         let swapchain = SpVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
 
         let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), swapchain.images.len() as u32);
-        
+
         let render_semaphore = create_vk_semaphore(&device);
         let wait_semaphore = create_vk_semaphore(&device);
 
@@ -422,7 +422,7 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
     unsafe 
     {
         vk_check!(vk_ctx.device.queue_submit(vk_ctx.queues.graphics.handle, &submit_info, vk::Fence::null())).unwrap();
-    
+
         vk_check!(vk_ctx.device.queue_wait_idle(vk_ctx.queues.graphics.handle)).unwrap();
 
         vk_ctx.device.free_command_buffers(vk_ctx.draw_cmds.pool, &[cmd_buffer]);

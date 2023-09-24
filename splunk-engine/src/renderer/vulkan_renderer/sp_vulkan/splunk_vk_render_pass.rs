@@ -36,6 +36,34 @@ bitflags! {
     }
 }
 
+// /// ### ERenderPassBit: u32 enum
+// /// *Contains bitwise flags*
+// /// <pre>
+// /// - Members
+// ///     NONE                    0x00
+// ///     FIRST                   0x01
+// ///     LAST                    0x02
+// ///     OFFSCREEN               0x04
+// ///     OFFSCREEN_INTERNAL      0x08
+// /// </pre>
+// #[repr(u32)]
+// #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// pub enum ERenderPassBit
+// {
+//     /// ERenderPassBit::NONE = 0x00
+//     NONE = 0x00,
+//     /// ERenderPassBit::FIRST = 0x01
+//     FIRST = 0x01,
+//     /// ERenderPassBit::LAST = 0x02
+//     LAST = 0x02,
+//     /// ERenderPassBit::OFFSCREEN = 0x04
+//     OFFSCREEN = 0x04,
+//     /// ERenderPassBit::OFFSCREEN_INTERNAL = 0x08
+//     #[allow(non_camel_case_types)]
+//     OFFSCREEN_INTERNAL = 0x08,
+// }
+
+
 /// ### SpVkRenderPassInfo struct
 /// *Details that describe the VkRenderPass*
 /// <pre>
@@ -85,7 +113,7 @@ pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, i
     let offscreen_internal: bool = (info.flags & ERenderPassBit::OFFSCREEN_INTERNAL) != ERenderPassBit::NONE;
     let first: bool = (info.flags & ERenderPassBit::FIRST) != ERenderPassBit::NONE;
     let last: bool = (info.flags & ERenderPassBit::LAST) != ERenderPassBit::NONE;
-    
+
     let mut attachments: Vec<vk::AttachmentDescription> = Vec::new();
 
     let mut color_attachment: vk::AttachmentDescription;

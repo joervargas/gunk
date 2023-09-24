@@ -259,9 +259,9 @@ pub fn create_vk_instance(window: &Window, entry: &Entry, app_name: CString, app
         enabled_layer_count: layers.len() as u32,
         pp_enabled_layer_names: layers.as_slice().as_ptr(),
     };
-    
+
     let instance = unsafe { vk_check!( entry.create_instance(&create_info, None)).unwrap() };
-    
+
     log_info!("VkInstance handle created.");
 
     return instance;
@@ -349,6 +349,6 @@ pub fn create_debug_callback(entry: &Entry, instance: &Instance) -> (DebugUtils,
     {  
         vk_check!( debut_utils_loader.create_debug_utils_messenger(&messenger_ci, None) ).unwrap() 
     };
-    
+
     (debut_utils_loader, utils_messenger)
 }

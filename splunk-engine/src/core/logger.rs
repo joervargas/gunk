@@ -24,6 +24,8 @@ macro_rules! logger {
     };
 }
 
+/// ### log_info!( ... )
+/// *Logs messages as information.<br> Will print blue text in the terminal.*
 #[macro_export]
 macro_rules! log_info {
     () => {};
@@ -63,6 +65,8 @@ macro_rules! log_info {
     };
 }
 
+/// ### log_warn!( ... )
+/// *Logs messages as warnings.<br> Will print yellow text in the terminal.*
 #[macro_export]
 macro_rules! log_warn {
     () => {};
@@ -104,6 +108,8 @@ macro_rules! log_warn {
     };
 }
 
+/// ### log_err!( ... )
+/// *Logs messages as errors.<br> Will print red text in the terminal.*
 #[macro_export]
 macro_rules! log_err {
     () => {};
@@ -142,5 +148,19 @@ macro_rules! log_err {
             // meta_data.red()
             $crate::core::logger::colored::Colorize::red(meta_data.as_str())
         );
+    };
+}
+
+/// ### check_err!( ... )
+/// *Logs an error if present in Result\<()\>*
+#[macro_export]
+macro_rules! check_err {
+    ( $result:expr ) => 
+    {
+        match $result
+        {
+            Ok(obj) => { Some(obj) },
+            Err(e) => { $crate::log_err!(e); None }
+        }
     };
 }
