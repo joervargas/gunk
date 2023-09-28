@@ -436,7 +436,7 @@ pub fn create_vk_semaphore(device: &ash::Device) -> vk::Semaphore
 /// </pre>
 pub fn create_vk_pipeline_layout(
         device: &ash::Device, 
-        desc_set_layouts: Vec<vk::DescriptorSetLayout>, 
+        desc_set_layouts: &Vec<vk::DescriptorSetLayout>, 
         push_const_ranges: Vec<vk::PushConstantRange>
     ) -> vk::PipelineLayout
 {
@@ -543,7 +543,7 @@ pub fn create_vk_pipeline_info_rasterization(
     }
 }
 
-/// ### fn create_vk_pipeline_multisample( ... ) -> vk::PipelineMultisampleStateCreateInfo
+/// ### fn create_vk_pipeline_info_multisample( ... ) -> vk::PipelineMultisampleStateCreateInfo
 /// *Creates a vk::PipelineMultisampleCreateInfo struct*
 /// <pre>
 /// - Params
@@ -553,7 +553,7 @@ pub fn create_vk_pipeline_info_rasterization(
 /// - Return
 ///     vk::PipelineMultisampleCreateInfo
 /// </pre>
-pub fn create_vk_pipeline_multisample(
+pub fn create_vk_pipeline_info_multisample(
         samples: vk::SampleCountFlags, 
         b_sample_shading: vk::Bool32, min_sample_shading: f32
     ) -> vk::PipelineMultisampleStateCreateInfo

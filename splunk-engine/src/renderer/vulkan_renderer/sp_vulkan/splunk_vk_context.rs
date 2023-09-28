@@ -3,6 +3,7 @@ use gpu_allocator::vulkan::Allocator;
 
 use crate::{log_info, vk_check};
 
+use super::splunk_vk_render_pass::SpVkRenderPass;
 use super::vk_utils::*;
 
 use super::splunk_vk_loader::SpVkLoader;
@@ -427,4 +428,43 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
 
         vk_ctx.device.free_command_buffers(vk_ctx.draw_cmds.pool, &[cmd_buffer]);
     }
+}
+
+
+pub fn sp_create_vk_color_depth_framebuffers(
+        vk_ctx: &SpVkContext, 
+        renderpass: &SpVkRenderPass, 
+        depth_view: &vk::ImageView
+    ) -> Vec<vk::Framebuffer>
+{
+    let mut framebuffers: Vec<vk::Framebuffer> = Vec::new();
+
+    for image_view in vk_ctx.swapchain.views.iter()
+    {
+        let attachments = [
+            *image_view,
+            *depth_view
+        ];
+
+        let create_info = vk::FramebufferCreateInfo
+        {
+            s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::FramebufferCreateFlags::empty(),
+            render_pass: renderpass.handle,
+            attachment_count: attachments.len() as u32,
+            p_attachments: attachments.as_ptr(),
+            width: vk_ctx.swapchain.extent.width,
+            height: vk_ctx.swapchain.extent.height,
+            layers: 1
+        };
+
+        let framebuffer = unsafe {
+            vk_check!(vk_ctx.device.create_framebuffer(&create_info, None)).unwrap()
+        };
+
+        framebuffers.push(framebuffer);
+    }
+
+    framebuffers
 }

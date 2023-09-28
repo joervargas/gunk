@@ -225,22 +225,23 @@ pub fn sp_destroy_vk_buffer(vk_ctx: &mut SpVkContext, buffer: SpVkBuffer)
 
 /// ### fn sp_create_vk_vertex_buffer_from_file\<T\>( ... ) -> SpVkBuffer
 /// *Reads 3d format file and creates a vertex buffer using type T*<br>
-/// *T is Type of Vertex Data*
+/// *T is Type of Vertex Data*<br>
+/// *Populates vert and index buffer sizes*
 /// <pre>
 /// - Params
-///     vk_ctx:     <b>&mut</b> SpVkContext
-///     label:      &str                    <i>// Used for debug purposes<i>
-///     usage:      vk::BufferUsageFlags
-///     file_path:  &path::Path
+///     vk_ctx:             <b>&mut</b> SpVkContext
+///     label:              &str                    <i>// Used for debug purposes<i>
+///     usage:              vk::BufferUsageFlags
+///     file_path:          &path::Path
 /// - Return
-///     SpVkBuffer
+///     (SpVkBuffer, SpVkBuffer) <i>// (vertex_buffer, index_buffer)
 /// </pre>
 pub fn sp_create_vk_vertex_buffer_from_file<T>(
         vk_ctx: &mut SpVkContext, 
         label: &str, 
         usage: vk::BufferUsageFlags, 
         file_path: &std::path::Path,
-    ) -> SpVkBuffer
+    ) -> (SpVkBuffer, SpVkBuffer)
 {
     let scene_flags = vec![
         PostProcess::Triangulate
@@ -272,38 +273,156 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
     let vert_buffer_size = std::mem::size_of::<VertexData>() * vertices.len();
     let index_buffer_size = std::mem::size_of::<u32>() * indices.len();
 
-    let buffer_size = (vert_buffer_size + index_buffer_size) as vk::DeviceSize;
-    let staging_label = String::from(format!("staging {}", label));
+    // let buffer_size = (vert_buffer_size + index_buffer_size) as vk::DeviceSize;
+    let staging_vert_label = String::from(format!("staging vert{}", label));
 
-    let staging = sp_create_vk_buffer(
+    let staging_vertex = sp_create_vk_buffer(
         vk_ctx, 
-        &staging_label, 
+        &staging_vert_label, 
         vk::BufferUsageFlags::TRANSFER_SRC, 
         MemoryLocation::CpuToGpu, 
-        buffer_size
+        vert_buffer_size as vk::DeviceSize
     );
 
     unsafe
     {
-        let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging.allocation.memory(), staging.allocation.offset(), buffer_size, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_vertex.allocation.memory(), staging_vertex.allocation.offset(), vert_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
             mapped_ptr.copy_from_nonoverlapping(vertices.as_slice().as_ptr() as *const u8, vert_buffer_size);
-            mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, index_buffer_size);
-        vk_ctx.device.unmap_memory(staging.allocation.memory());
+        vk_ctx.device.unmap_memory(staging_vertex.allocation.memory());
     }
 
-    let buffer = sp_create_vk_buffer(
+    let staging_index_label = String::from(format!("staging index{}", label));
+    let staging_indices = sp_create_vk_buffer(
+        vk_ctx, 
+        &staging_index_label, 
+        vk::BufferUsageFlags::TRANSFER_SRC,
+        MemoryLocation::CpuToGpu,
+        index_buffer_size as vk::DeviceSize
+    );
+
+    unsafe
+    {
+        let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_indices.allocation.memory(), staging_indices.allocation.offset(), index_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+            mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, index_buffer_size);
+        vk_ctx.device.unmap_memory(staging_indices.allocation.memory());
+    }
+
+    let vert_label = String::from(format!("vertex {}", label));
+    let vert_buffer = sp_create_vk_buffer(
         vk_ctx,
-        label, 
+        &vert_label, 
         usage,
         MemoryLocation::GpuOnly,
-        buffer_size
+        vert_buffer_size as vk::DeviceSize
+    );
+
+    let index_label = String::from(format!("index {}", label));
+    let index_buffer = sp_create_vk_buffer(
+        vk_ctx,
+        &index_label,
+        usage,
+        MemoryLocation::GpuOnly,
+        index_buffer_size as vk::DeviceSize
     );
 
     let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
-        copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging.handle, &buffer.handle, buffer_size);
+        copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_vertex.handle, &vert_buffer.handle, vert_buffer_size as vk::DeviceSize);
+        copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_indices.handle, &index_buffer.handle, index_buffer_size as vk::DeviceSize);
     sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
-    sp_destroy_vk_buffer(vk_ctx, staging);
-    
-    buffer
+    sp_destroy_vk_buffer(vk_ctx, staging_vertex);
+    sp_destroy_vk_buffer(vk_ctx, staging_indices);
+
+    (vert_buffer, index_buffer)
 }
+
+
+// /// ### fn sp_create_vk_vertex_buffer_from_file\<T\>( ... ) -> SpVkBuffer
+// /// *Reads 3d format file and creates a vertex buffer using type T*<br>
+// /// *T is Type of Vertex Data*<br>
+// /// *Populates vert and index buffer sizes*
+// /// <pre>
+// /// - Params
+// ///     vk_ctx:             <b>&mut</b> SpVkContext
+// ///     label:              &str                    <i>// Used for debug purposes<i>
+// ///     usage:              vk::BufferUsageFlags
+// ///     file_path:          &path::Path
+// ///     vert_buffer_size:   &mut u32                <i>// populates this value
+// ///     index_buffer_size:  &mut u32                <i>// populates this value
+// /// - Return
+// ///     SpVkBuffer
+// /// </pre>
+// pub fn sp_create_vk_vertex_buffer_from_file<T>(
+//         vk_ctx: &mut SpVkContext, 
+//         label: &str, 
+//         usage: vk::BufferUsageFlags, 
+//         file_path: &std::path::Path,
+//         vert_buffer_size: &mut usize,
+//         index_buffer_size: &mut usize,
+//     ) -> SpVkBuffer
+// {
+//     let scene_flags = vec![
+//         PostProcess::Triangulate
+//     ];
+//     let scene = check_err!(Scene::from_file(file_path.to_str().unwrap(), scene_flags)).unwrap();
+//     if scene.meshes.is_empty()
+//     {
+//         log_err!("unable to load {}", file_path.to_str().unwrap());
+//     }
+
+//     let mesh = scene.meshes.first().unwrap();
+//     let mut vertices: Vec<vertex_data::VertexData> = Vec::new();
+//     for (i, v) in mesh.vertices.iter().enumerate()
+//     {
+//         let t = mesh.texture_coords[0].as_ref().unwrap()[i];
+//         vertices.push( VertexData{ pos: glm::Vec3::new(v.x, v.y, v.z), tc: glm::Vec2::new(t.x, 1.0 - t.y) } );
+//     }
+
+//     let mut indices: Vec<u32> = Vec::new();
+//     for face in mesh.faces.iter()
+//     {
+//         for f in face.0.iter()
+//         {
+//             indices.push(*f);
+//         }
+//     }
+//     drop(scene);
+
+//     *vert_buffer_size = std::mem::size_of::<VertexData>() * vertices.len();
+//     *index_buffer_size = std::mem::size_of::<u32>() * indices.len();
+
+//     let buffer_size = (*vert_buffer_size + *index_buffer_size) as vk::DeviceSize;
+//     let staging_label = String::from(format!("staging {}", label));
+
+//     let staging = sp_create_vk_buffer(
+//         vk_ctx, 
+//         &staging_label, 
+//         vk::BufferUsageFlags::TRANSFER_SRC, 
+//         MemoryLocation::CpuToGpu, 
+//         buffer_size
+//     );
+
+//     unsafe
+//     {
+//         let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging.allocation.memory(), staging.allocation.offset(), buffer_size, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+//             mapped_ptr.copy_from_nonoverlapping(vertices.as_slice().as_ptr() as *const u8, *vert_buffer_size);
+//             mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, *index_buffer_size);
+//         vk_ctx.device.unmap_memory(staging.allocation.memory());
+//     }
+
+//     let buffer = sp_create_vk_buffer(
+//         vk_ctx,
+//         label, 
+//         usage,
+//         MemoryLocation::GpuOnly,
+//         buffer_size
+//     );
+
+//     let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+//         copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging.handle, &buffer.handle, buffer_size);
+//     sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+
+//     sp_destroy_vk_buffer(vk_ctx, staging);
+    
+//     buffer
+// }

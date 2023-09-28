@@ -163,7 +163,8 @@ pub fn create_vk_shader_module(device: &ash::Device, spirv: &Vec<u32>) -> vk::Sh
 pub struct SpVkShaderModule
 {
     pub handle: vk::ShaderModule,
-    pub spirv:  Vec<u32>
+    pub spirv:  Vec<u32>,
+    pub stage: vk::ShaderStageFlags
 }
 
 impl SpVkShaderModule
@@ -181,8 +182,9 @@ impl SpVkShaderModule
     {
         let spirv = compile_shader_to_spirv(file_path);
         let handle = create_vk_shader_module(device, &spirv);
+        let stage = get_vk_shader_stage_from_filename(file_path);
 
-        Self{ handle, spirv }
+        Self{ handle, spirv, stage }
     }
 
     /// ### fn SpVkShaderModule::destroy(&mut self, ...)
@@ -198,6 +200,28 @@ impl SpVkShaderModule
         unsafe
         {
             device.destroy_shader_module(self.handle, None);
+        }
+    }
+
+    /// ### fn get_vk_pipeline_info_shader_stage (&self) -> vk::PipelineShaderStageCreateInfo
+    /// *Returns a populated vk::PipelineShaderStageCreateInfo struct for convenience*
+    /// <pre>
+    /// - Params
+    ///     <b>&self</b>
+    /// - Return
+    ///     vk::ShaderStageCreateInfo
+    /// </pre>
+    pub fn get_vk_pipeline_info_shader_stage(&self) -> vk::PipelineShaderStageCreateInfo
+    {
+        vk::PipelineShaderStageCreateInfo
+        {
+            s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::PipelineShaderStageCreateFlags::empty(),
+            stage: self.stage,
+            module: self.handle,
+            p_name: "main".as_ptr() as *const i8,
+            p_specialization_info: std::ptr::null()
         }
     }
 }

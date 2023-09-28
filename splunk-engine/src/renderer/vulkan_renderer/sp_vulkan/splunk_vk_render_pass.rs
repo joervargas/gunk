@@ -259,3 +259,10 @@ pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, i
         handle
     }
 }
+
+pub fn sp_destroy_vk_renderpass(vk_ctx: &SpVkContext, renderpass: &SpVkRenderPass)
+{
+    unsafe{
+        vk_ctx.device.destroy_render_pass(renderpass.handle, None);
+    }
+}
