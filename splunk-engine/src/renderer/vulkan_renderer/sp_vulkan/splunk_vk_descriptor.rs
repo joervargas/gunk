@@ -161,7 +161,7 @@ pub fn sp_create_vk_desc_pool(
 /// </pre>
 pub struct SpVkDescriptor
 {
-    pub layouts:     Vec<vk::DescriptorSetLayout>,
+    pub layouts:    Vec<vk::DescriptorSetLayout>,
     pub pool:       vk::DescriptorPool,
     pub sets:       Vec<vk::DescriptorSet>
 }

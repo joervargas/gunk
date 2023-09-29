@@ -446,10 +446,10 @@ pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::Phys
 /// </pre>
 pub struct SpVkImage
 {
-    pub handle: vk::Image,
-    pub alloc: Allocation,
-    pub view: vk::ImageView,
-    pub size: vk::DeviceSize,
+    pub handle:     vk::Image,
+    pub alloc:      Allocation,
+    pub view:       vk::ImageView,
+    pub size:       vk::DeviceSize,
 }
 
 /// ### sp_create_vk_image( ... ) -> SpVkImage

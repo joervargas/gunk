@@ -100,8 +100,8 @@ impl SpVkDebugLayers
 /// </pre>
 pub struct SpVkSurface
 {
-    pub loader: Surface,
-    pub handle: vk::SurfaceKHR
+    pub loader:     Surface,
+    pub handle:     vk::SurfaceKHR
 }
 
 impl SpVkSurface
@@ -148,10 +148,10 @@ impl SpVkSurface
 /// </pre>
 pub struct SpVkLoader
 {
-    pub entry: Entry,
-    pub instance: Instance,
-    pub debug_layer: Option<SpVkDebugLayers>,
-    pub surface: SpVkSurface
+    pub entry:          Entry,
+    pub instance:       Instance,
+    pub debug_layer:    Option<SpVkDebugLayers>,
+    pub surface:        SpVkSurface
 }
 
 impl SpVkLoader

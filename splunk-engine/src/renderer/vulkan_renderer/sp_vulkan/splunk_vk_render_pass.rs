@@ -77,12 +77,12 @@ bitflags! {
 /// </pre>
 pub struct SpVkRenderPassInfo
 {
-    pub b_use_color: bool,
-    pub b_clear_color: bool,
-    pub color_format: vk::Format,
-    pub b_use_depth: bool,
-    pub b_clear_depth: bool,
-    pub flags: ERenderPassBit
+    pub b_use_color:        bool,
+    pub b_clear_color:      bool,
+    pub color_format:       vk::Format,
+    pub b_use_depth:        bool,
+    pub b_clear_depth:      bool,
+    pub flags:              ERenderPassBit
 }
 
 /// ### SpVkRenderPass struct
@@ -94,8 +94,8 @@ pub struct SpVkRenderPassInfo
 /// </pre>
 pub struct SpVkRenderPass
 {
-    pub info: SpVkRenderPassInfo,
-    pub handle: vk::RenderPass
+    pub info:       SpVkRenderPassInfo,
+    pub handle:     vk::RenderPass
 }
 
 /// ### fn sp_create_vk_renderpass( ... ) -> SpVkRenderPass

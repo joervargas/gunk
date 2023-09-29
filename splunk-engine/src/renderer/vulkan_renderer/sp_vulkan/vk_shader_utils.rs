@@ -162,9 +162,9 @@ pub fn create_vk_shader_module(device: &ash::Device, spirv: &Vec<u32>) -> vk::Sh
 /// </pre>
 pub struct SpVkShaderModule
 {
-    pub handle: vk::ShaderModule,
-    pub spirv:  Vec<u32>,
-    pub stage: vk::ShaderStageFlags
+    pub handle:     vk::ShaderModule,
+    pub spirv:      Vec<u32>,
+    pub stage:      vk::ShaderStageFlags
 }
 
 impl SpVkShaderModule

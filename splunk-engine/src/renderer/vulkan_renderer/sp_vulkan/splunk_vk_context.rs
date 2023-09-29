@@ -18,8 +18,8 @@ use super::splunk_vk_img::create_vk_image_view;
 /// </pre>
 pub struct SpVkQueue
 {
-    pub index: Option<u32>,
-    pub handle: vk::Queue,
+    pub index:      Option<u32>,
+    pub handle:     vk::Queue,
 }
 
 impl SpVkQueue
@@ -49,7 +49,7 @@ impl SpVkQueue
 /// </pre>
 pub struct SpVkQueues
 {
-    pub graphics: SpVkQueue,
+    pub graphics:   SpVkQueue,
 }
 
 impl SpVkQueues
@@ -144,12 +144,12 @@ impl SpVkQueues
 /// </pre>
 pub struct SpVkSwapchain
 {
-    pub loader: ash::extensions::khr::Swapchain,
-    pub handle: vk::SwapchainKHR,
-    pub images: Vec<vk::Image>,
-    pub views: Vec<vk::ImageView>,
-    pub format: vk::Format,
-    pub extent: vk::Extent2D
+    pub loader:     ash::extensions::khr::Swapchain,
+    pub handle:     vk::SwapchainKHR,
+    pub images:     Vec<vk::Image>,
+    pub views:      Vec<vk::ImageView>,
+    pub format:     vk::Format,
+    pub extent:     vk::Extent2D
 }
 
 impl SpVkSwapchain
@@ -233,8 +233,8 @@ impl SpVkSwapchain
 /// </pre>
 pub struct  SpVkCommands
 {
-    pub pool: vk::CommandPool,
-    pub buffers: Vec<vk::CommandBuffer>
+    pub pool:       vk::CommandPool,
+    pub buffers:    Vec<vk::CommandBuffer>
 }
 
 impl SpVkCommands
@@ -288,14 +288,14 @@ impl SpVkCommands
 /// </pre>
 pub struct SpVkContext
 {
-    pub device: Device,
-    pub physical_device: vk::PhysicalDevice,
-    pub allocator: Allocator,
-    pub queues: SpVkQueues,
-    pub swapchain: SpVkSwapchain,
-    pub draw_cmds: SpVkCommands,
-    pub render_semaphore: vk::Semaphore,
-    pub wait_semaphore: vk::Semaphore,
+    pub device:             Device,
+    pub physical_device:    vk::PhysicalDevice,
+    pub allocator:          Allocator,
+    pub queues:             SpVkQueues,
+    pub swapchain:          SpVkSwapchain,
+    pub draw_cmds:          SpVkCommands,
+    pub render_semaphore:   vk::Semaphore,
+    pub wait_semaphore:     vk::Semaphore,
 }
 
 impl SpVkContext

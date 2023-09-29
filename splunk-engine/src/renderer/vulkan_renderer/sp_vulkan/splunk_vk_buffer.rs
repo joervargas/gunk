@@ -166,9 +166,9 @@ pub fn copy_vk_buffer(device: &ash::Device, cmd_buffer: &vk::CommandBuffer, src_
 /// </pre>
 pub struct SpVkBuffer
 {
-    pub handle: vk::Buffer,
-    pub allocation: Allocation,
-    pub size: vk::DeviceSize,
+    pub handle:         vk::Buffer,
+    pub allocation:     Allocation,
+    pub size:           vk::DeviceSize,
 }
 
 /// ### fn sp_create_vk_buffer( ... ) -> SpVkBuffer

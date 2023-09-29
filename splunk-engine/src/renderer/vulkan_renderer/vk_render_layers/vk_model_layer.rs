@@ -25,15 +25,15 @@ use super::sp_vk_render_layer::SpVkRenderLayer;
 
 pub struct VkModelLayer
 {
-    renderpass: SpVkRenderPass,
-    framebuffers: Vec<vk::Framebuffer>,
-    descriptor: SpVkDescriptor,
-    pipeline_layout: vk::PipelineLayout,
-    pipeline: vk::Pipeline,
-    storage_vert: Option<SpVkBuffer>,
-    storage_index: Option<SpVkBuffer>,
-    texture: Option<SpVkImage>,
-    sampler: vk::Sampler
+    renderpass:         SpVkRenderPass,
+    framebuffers:       Vec<vk::Framebuffer>,
+    descriptor:         SpVkDescriptor,
+    pipeline_layout:    vk::PipelineLayout,
+    pipeline:           vk::Pipeline,
+    storage_vert:       Option<SpVkBuffer>,
+    storage_index:      Option<SpVkBuffer>,
+    texture:            Option<SpVkImage>,
+    sampler:            vk::Sampler
 }
 
 impl VkModelLayer
