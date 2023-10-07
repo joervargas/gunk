@@ -1,4 +1,5 @@
-use std::io::Read;
+use std::{io::Read, ffi::CString};
+use std::ffi::OsStr;
 
 use ash::{ self, vk };
 
@@ -17,7 +18,8 @@ use crate::{log_err, vk_check, check_err};
 /// </pre>
 fn is_extension(file_path: &std::path::Path, file_ext: &str) -> bool
 {
-    if file_path.extension().unwrap().to_str().unwrap() == file_ext 
+    let fp_ext = file_path.extension().and_then(OsStr::to_str).unwrap();
+    if fp_ext == file_ext 
     {
         return true;
     } else {
@@ -39,7 +41,7 @@ fn read_file_to_string(file_path: &std::path::Path) -> String
         .expect(format!("Unable to open file {}", file_path.to_str().unwrap()).as_str());
     
     let mut code = String::new();
-    check_err!( file.read_to_string(&mut code) )
+    let _buff_size = check_err!( file.read_to_string(&mut code) )
         .expect(format!("Unable to read file {}", file_path.to_str().unwrap()).as_str());
 
     code
@@ -61,8 +63,7 @@ pub fn get_shaderc_shaderkind_from_filename(file_path: &std::path::Path) -> Shad
     if is_extension(&file_path, "geom") { return ShaderKind::Geometry; }
     if is_extension(&file_path, "tesc") { return ShaderKind::TessControl; }
     if is_extension(&file_path, "tese") { return ShaderKind::TessEvaluation; }
-
-    log_err!("Shader file extension for file {} is not supported.\nPlease be sure the following extensions are used: \n\t'.vert' '.frag' '.comp' '.geom' '.tesc' '.tese'", file_path.to_str().unwrap());
+    log_err!("\nShader file extension for file {} is not supported. Please be sure the following extensions are used: \n\t'.vert' '.frag' '.comp' '.geom' '.tesc' '.tese'", file_path.to_str().unwrap());
 
     panic!("Shader file extension not supported!");
 }
@@ -111,16 +112,16 @@ pub fn get_vk_shader_stage_from_filename(file_path: &std::path::Path) -> vk::Sha
 /// - Params
 ///     file_path:      &std::path::Path
 /// - Return
-///     Vec&lt;u32&gt;      // Spirv binary
+///     shaderc::CompilationArtifact      // Spirv binary
 /// </pre>
-pub fn compile_shader_to_spirv(file_path: &std::path::Path) -> Vec<u32>
+pub fn compile_shader_to_spirv(file_path: &std::path::Path) -> shaderc::CompilationArtifact
 {
     let source = read_file_to_string(file_path);
     let shader_kind = get_shaderc_shaderkind_from_filename(file_path);
 
     let compiler = shaderc::Compiler::new().unwrap();
 
-    let compilation = check_err!( 
+    check_err!( 
         compiler.compile_into_spirv(
             &source.as_str(), 
             shader_kind, 
@@ -128,26 +129,24 @@ pub fn compile_shader_to_spirv(file_path: &std::path::Path) -> Vec<u32>
             "main", 
             None
         )
-    ).unwrap();
-
-    compilation.as_binary().to_vec()
+    ).unwrap()
 }
 
 /// ### fn create_vk_shader_modue( ... ) -> vk::ShaderModule
 /// <pre>
 /// - Params
 ///     device:     &ash::Device
-///     spirv:      &Vec&lt;u32&gt;
+///     spirv:      &shaderc::CompilationArtifact
 /// - Return
 ///     vk::ShaderModule
 /// </pre>
-pub fn create_vk_shader_module(device: &ash::Device, spirv: &Vec<u32>) -> vk::ShaderModule
+pub fn create_vk_shader_module(device: &ash::Device, spirv: &shaderc::CompilationArtifact) -> vk::ShaderModule
 {
     let create_info = vk::ShaderModuleCreateInfo
     {
         s_type: vk::StructureType::SHADER_MODULE_CREATE_INFO,
         code_size: spirv.len(),
-        p_code: spirv.as_ptr(),
+        p_code: spirv.as_binary().as_ptr(),
         ..Default::default()
     };
 
@@ -158,12 +157,13 @@ pub fn create_vk_shader_module(device: &ash::Device, spirv: &Vec<u32>) -> vk::Sh
 /// <pre>
 /// - Members
 ///     handle:     vk::ShaderModule,
-///     spirv:      Vec&lt;u32&gt;
+///     spirv:      shaderc::CompilationArtifact
+///     stage:      vk::ShaderStageFlags
 /// </pre>
 pub struct SpVkShaderModule
 {
     pub handle:     vk::ShaderModule,
-    pub spirv:      Vec<u32>,
+    pub spirv:      shaderc::CompilationArtifact,
     pub stage:      vk::ShaderStageFlags
 }
 
@@ -196,7 +196,7 @@ impl SpVkShaderModule
     /// </pre>
     pub fn destroy(&mut self, device: &ash::Device)
     {
-        self.spirv.clear();
+        // self.spirv.clear();
         unsafe
         {
             device.destroy_shader_module(self.handle, None);
@@ -211,7 +211,7 @@ impl SpVkShaderModule
     /// - Return
     ///     vk::ShaderStageCreateInfo
     /// </pre>
-    pub fn get_vk_pipeline_info_shader_stage(&self) -> vk::PipelineShaderStageCreateInfo
+    pub fn get_vk_pipeline_info_shader_stage(&self, entry_point: &CString) -> vk::PipelineShaderStageCreateInfo
     {
         vk::PipelineShaderStageCreateInfo
         {
@@ -220,7 +220,7 @@ impl SpVkShaderModule
             flags: vk::PipelineShaderStageCreateFlags::empty(),
             stage: self.stage,
             module: self.handle,
-            p_name: "main".as_ptr() as *const i8,
+            p_name: entry_point.as_ptr(),
             p_specialization_info: std::ptr::null()
         }
     }

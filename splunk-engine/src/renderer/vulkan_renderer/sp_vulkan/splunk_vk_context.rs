@@ -271,6 +271,13 @@ impl SpVkCommands
             device.destroy_command_pool(self.pool, None);
         }
     }
+
+    pub fn reset(&self, device: &ash::Device)
+    {
+        unsafe{
+            vk_check!(device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty()));
+        }
+    }
 }
 
 /// ### SpVkContext struct
@@ -290,7 +297,7 @@ pub struct SpVkContext
 {
     pub device:             Device,
     pub physical_device:    vk::PhysicalDevice,
-    pub allocator:          Allocator,
+    pub allocator:          Option<Allocator>,
     pub queues:             SpVkQueues,
     pub swapchain:          SpVkSwapchain,
     pub draw_cmds:          SpVkCommands,
@@ -335,7 +342,7 @@ impl SpVkContext
         {
             device,
             physical_device,
-            allocator,
+            allocator: Some(allocator),
             queues,
             swapchain,
             draw_cmds,
@@ -350,16 +357,27 @@ impl SpVkContext
     /// - Params
     ///     <b>&self</b>
     /// </pre>
-    pub fn destroy(&self)
+    pub fn destroy(&mut self)
     {
-        // drop(self.allocator);
+
+        unsafe
+        {
+            self.device.destroy_semaphore(self.render_semaphore, None);
+            self.device.destroy_semaphore(self.wait_semaphore, None);
+        }
 
         self.swapchain.destroy(&self.device);
         self.draw_cmds.destroy(&self.device);
+        drop(self.allocator.take().unwrap());
         unsafe
         {
             self.device.destroy_device(None);
         }
+    }
+
+    pub fn reset_draw_cmd_pool(&self)
+    {
+        self.draw_cmds.reset(&self.device);
     }
 
 }
@@ -444,6 +462,43 @@ pub fn sp_create_vk_color_depth_framebuffers(
         let attachments = [
             *image_view,
             *depth_view
+        ];
+
+        let create_info = vk::FramebufferCreateInfo
+        {
+            s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::FramebufferCreateFlags::empty(),
+            render_pass: renderpass.handle,
+            attachment_count: attachments.len() as u32,
+            p_attachments: attachments.as_ptr(),
+            width: vk_ctx.swapchain.extent.width,
+            height: vk_ctx.swapchain.extent.height,
+            layers: 1
+        };
+
+        let framebuffer = unsafe {
+            vk_check!(vk_ctx.device.create_framebuffer(&create_info, None)).unwrap()
+        };
+
+        framebuffers.push(framebuffer);
+    }
+
+    framebuffers
+}
+
+
+pub fn sp_create_vk_color_only_framebuffers(
+        vk_ctx: &SpVkContext, 
+        renderpass: &SpVkRenderPass
+    ) -> Vec<vk::Framebuffer>
+{
+    let mut framebuffers: Vec<vk::Framebuffer> = Vec::new();
+
+    for image_view in vk_ctx.swapchain.views.iter()
+    {
+        let attachments = [
+            *image_view,
         ];
 
         let create_info = vk::FramebufferCreateInfo

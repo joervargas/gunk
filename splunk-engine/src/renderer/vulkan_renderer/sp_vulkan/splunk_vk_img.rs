@@ -10,7 +10,7 @@ use gpu_allocator::{
     }, 
 };
 
-use super::splunk_vk_buffer::{create_vk_buffer, map_vk_allocation_data};
+use super::splunk_vk_buffer::create_vk_buffer;
 
 use crate::{vk_check, log_err};
 
@@ -71,10 +71,11 @@ pub fn create_vk_image(
         requirements: mem_requirements,
         location: MemoryLocation::GpuOnly,
         linear: true,
-        allocation_scheme: AllocationScheme::DedicatedImage(img)
+        allocation_scheme: AllocationScheme::GpuAllocatorManaged
     };
     let allocation = vk_check!(allocator.allocate(&alloc_info)).unwrap();
-
+    unsafe { vk_check!(device.bind_image_memory(img, allocation.memory(), allocation.offset())); }
+    
     (img, allocation)
 }
 
@@ -142,7 +143,7 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
         address_mode_v: vk::SamplerAddressMode::REPEAT,
         address_mode_w: vk::SamplerAddressMode::REPEAT,
         mip_lod_bias: 0.0,
-        anisotropy_enable: vk::TRUE,
+        anisotropy_enable: vk::FALSE,
         max_anisotropy: 1.0,
         compare_enable: vk::FALSE,
         compare_op: vk::CompareOp::ALWAYS,
@@ -472,16 +473,22 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
 
     let label = String::from(format!("staging_allocation: {}", file_name));
     (staging_buffer, staging_allocation) = create_vk_buffer(
-        &vk_ctx.device, &mut vk_ctx.allocator, label.as_str(), 
+        &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), label.as_str(), 
         img_size, 
         vk::BufferUsageFlags::TRANSFER_SRC, 
         MemoryLocation::CpuToGpu,
     );
 
-    map_vk_allocation_data(&staging_allocation, pixels.as_slice(), pixels.len());
+    // map_vk_allocation_data(&staging_allocation, pixels.as_slice(), pixels.len());
+    unsafe
+    {
+        let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
+            mapped_ptr.copy_from_nonoverlapping(pixels.as_slice().as_ptr() as *const u8, pixels.len());
+        // vk_ctx.device.unmap_memory(staging_allocation.memory());
+    }
 
     let (handle, alloc) = create_vk_image(
-        &vk_ctx.device, &mut vk_ctx.allocator, file_name, 
+        &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), file_name, 
         img.width(), img.height(), vk::Format::R8G8B8A8_UNORM, 
         vk::ImageTiling::OPTIMAL, vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED, 
         vk::ImageCreateFlags::empty(), 1);
@@ -511,7 +518,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
     unsafe
     {
         vk_ctx.device.destroy_buffer(staging_buffer, None);
-        vk_check!( vk_ctx.allocator.free(staging_allocation) ).unwrap()
+        vk_check!( vk_ctx.allocator.as_mut().unwrap().free(staging_allocation) ).unwrap()
     }
 
     let view = create_vk_image_view(
@@ -536,7 +543,7 @@ pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext
 {
     let format = find_vk_format_depth_img(instance, &vk_ctx.physical_device);
     let (img, alloc) = create_vk_image(
-        &vk_ctx.device, &mut vk_ctx.allocator, "depth image",
+        &vk_ctx.device, &mut vk_ctx.allocator.as_mut().unwrap(), "depth image",
         width, height, 
         format, vk::ImageTiling::OPTIMAL, 
         vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT, 
@@ -575,7 +582,7 @@ pub fn sp_destroy_vk_img(vk_ctx: &mut SpVkContext, img: SpVkImage)
     {
         vk_ctx.device.destroy_image(img.handle, None);
         // device.free_memory(img.memory, None);
-        vk_ctx.allocator.free(img.alloc).map_err(|e| { log_err!(e); } ).unwrap();
+        vk_ctx.allocator.as_mut().unwrap().free(img.alloc).map_err(|e| { log_err!(e); } ).unwrap();
         vk_ctx.device.destroy_image_view(img.view, None);
     }
 }

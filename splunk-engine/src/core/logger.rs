@@ -13,14 +13,14 @@ macro_rules! logger {
     () => {};
     ( $x:expr ) => 
     {
-        println!( "{}", format!("{}", $x).as_str() );
+        println!( "{} ", format!("{}", $x).as_str() );
     };
     ( $( $x:expr ),* ) =>
     {
         let mut t = std::string::String::from("");
 
         $( t.push_str(format!("{}", $x ).as_str()); )*
-        println!("{}", t );
+        println!("{} ", t );
     };
 }
 
@@ -32,7 +32,7 @@ macro_rules! log_info {
     ( $x:expr ) => 
     {
         let label: &str = "Info: ";
-        let data = format!("{}", $x );
+        let data = format!("{} ", $x );
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
         
         $crate::logger!(
@@ -51,14 +51,14 @@ macro_rules! log_info {
         let mut t = std::string::String::from("");
 
         let label: &str = "Info: ";
-        $( t.push_str(format!("{}", $x ).as_str()); )*
+        $( t.push_str(format!("{} ", $x ).as_str()); )*
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
         
         $crate::logger!(
             // label.blue().bold(),
             $crate::core::logger::colored::Colorize::bold($crate::core::logger::colored::Colorize::blue(label)),
             // t.blue(), 
-            $crate::core::logger::colored::Colorize::blue(tas_str()),
+            $crate::core::logger::colored::Colorize::blue(t.as_str()),
             // meta_data.blue()
             $crate::core::logger::colored::Colorize::blue(meta_data.as_str())
         );
@@ -75,7 +75,7 @@ macro_rules! log_warn {
         // use colored::Colorize;
 
         let label: &str = "Warning: ";
-        let data = format!("{}", $x );
+        let data = format!("{} ", $x );
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
         
         $crate::logger!(
@@ -94,7 +94,7 @@ macro_rules! log_warn {
         let mut t = std::string::String::from("");
 
         let label: &str = "Warning: ";
-        $( t.push_str(format!("{}", $x ).as_str()); )*
+        $( t.push_str(format!("{} ", $x ).as_str()); )*
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
         
         $crate::logger!(
@@ -118,7 +118,7 @@ macro_rules! log_err {
         // use colored::Colorize;
         
         let label = "Error: ";
-        let data = format!("{}", $x );
+        let data = format!("{} ", $x );
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
 
         $crate::logger!(
@@ -137,7 +137,7 @@ macro_rules! log_err {
         let mut t = std::string::String::from("");
 
         let label: &str = "Error: ";
-        $( t.push_str(format!("{}", $x ).as_str()); )*
+        $( t.push_str(format!("{} ", $x ).as_str()); )*
         let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
 
         $crate::logger!(

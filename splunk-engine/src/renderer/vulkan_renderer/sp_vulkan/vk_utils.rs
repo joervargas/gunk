@@ -7,6 +7,8 @@ use ash::{
 use super::splunk_vk_loader::SpVkSurface;
 use crate::{ vk_check, log_info, log_err };
 
+use std::ffi::CString;
+
 /// ### fn is_vk_physical_device_suitable( ... ) -> bool
 /// *Determines if vk::PhysicalDevice is suitable for use.*<br>
 /// *Queueries the device for features, properties and queue family indices.*
@@ -120,7 +122,7 @@ pub fn create_vk_device(instance: &ash::Instance, physical_device: &vk::Physical
     log_info!("Creating VkDevice handle...");
 
     const QUEUE_PRIORITY: f32 = 1.0;
-    
+
     let mut queue_create_infos: Vec<vk::DeviceQueueCreateInfo> = vec![];
     for queue_index in queue_indices.iter()
     {
@@ -136,8 +138,10 @@ pub fn create_vk_device(instance: &ash::Instance, physical_device: &vk::Physical
         queue_create_infos.push(queue_info);
     }
 
+    let vk_khr_shader_draw_parameters = CString::new("VK_KHR_shader_draw_parameters").unwrap();
     let extensions = vec![
-        ash::extensions::khr::Swapchain::name().as_ptr()
+        ash::extensions::khr::Swapchain::name().as_ptr(),
+        vk_khr_shader_draw_parameters.as_ptr()
     ];
 
     let create_info = vk::DeviceCreateInfo
@@ -180,7 +184,8 @@ pub fn create_vk_allocator(instance: &ash::Instance, physical_device: &vk::Physi
         device: device.clone(),
         physical_device: physical_device.clone(),
         debug_settings: Default::default(),
-        buffer_device_address: true,
+        buffer_device_address: false, // uses VK_KHR_buffer_device_address extension
+        allocation_sizes: Default::default(),
     };
 
     let allocator = gpu_allocator::vulkan::Allocator::new(&alloc_desc).map_err(|e| { log_err!(e); } ).unwrap();
@@ -244,7 +249,7 @@ pub fn choose_vk_swap_surface_format(formats: Vec<vk::SurfaceFormatKHR>) -> vk::
 {
     for format in formats.iter()
     {
-        if format.format == vk::Format::B8G8R8A8_SRGB && format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
+        if format.format == vk::Format::B8G8R8A8_UNORM && format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
         {
             return format.clone();
         }
@@ -368,7 +373,7 @@ pub fn create_vk_command_pool(device: &ash::Device, queue_family_index: u32) -> 
     {
         s_type: vk::StructureType::COMMAND_POOL_CREATE_INFO,
         p_next: std::ptr::null(),
-        flags: vk::CommandPoolCreateFlags::empty(),
+        flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
         queue_family_index: queue_family_index,
     };
 
@@ -429,15 +434,15 @@ pub fn create_vk_semaphore(device: &ash::Device) -> vk::Semaphore
 /// <pre>
 /// - Params
 ///     device:             &ash::Devie
-///     desc_set_layouts:   Vec&lt;vk::DescriptorSetLayout&gt;
-///     push_const_ranges:  Vec&lt;vk::PushConstantRange&gt;
+///     desc_set_layouts:   &Vec&lt;vk::DescriptorSetLayout&gt;
+///     push_const_ranges:  &Vec&lt;vk::PushConstantRange&gt;
 /// - Return
 ///     vk::PipelineLayout
 /// </pre>
 pub fn create_vk_pipeline_layout(
         device: &ash::Device, 
         desc_set_layouts: &Vec<vk::DescriptorSetLayout>, 
-        push_const_ranges: Vec<vk::PushConstantRange>
+        push_const_ranges: &Vec<vk::PushConstantRange>
     ) -> vk::PipelineLayout
 {
     let create_info = vk::PipelineLayoutCreateInfo
@@ -507,9 +512,9 @@ pub fn create_vk_pipeline_info_viewport(viewports: Vec<vk::Viewport>, scissors: 
     {
         s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
         viewport_count: viewports.len() as u32,
-        p_viewports: viewports.as_ptr(),
+        // p_viewports: viewports.as_ptr(),
         scissor_count: scissors.len() as u32,
-        p_scissors: scissors.as_ptr(),
+        // p_scissors: scissors.as_ptr(),
         ..Default::default()
     }
 }
@@ -603,7 +608,7 @@ pub fn create_vk_pipeline_info_color_blend_attachment(b_use_blending: bool) -> v
 /// - Return
 ///     vk::PipelineColorBlendStateCreateInfo
 /// </pre>
-pub fn create_vk_pipeline_info_color_blend(attachments: Vec<vk::PipelineColorBlendAttachmentState>) -> vk::PipelineColorBlendStateCreateInfo
+pub fn create_vk_pipeline_info_color_blend(attachments: &Vec<vk::PipelineColorBlendAttachmentState>) -> vk::PipelineColorBlendStateCreateInfo
 {
     vk::PipelineColorBlendStateCreateInfo
     {
@@ -646,7 +651,7 @@ pub fn create_vk_pipeline_info_depth_stencil() -> vk::PipelineDepthStencilStateC
 /// - Return
 ///     vk::PipelineDynamicStateCreateInfo
 /// </pre>
-pub fn create_vk_pipeline_info_dynamic_states(dynamic_states: Vec<vk::DynamicState>) -> vk::PipelineDynamicStateCreateInfo
+pub fn create_vk_pipeline_info_dynamic_states(dynamic_states: &Vec<vk::DynamicState>) -> vk::PipelineDynamicStateCreateInfo
 {
     vk::PipelineDynamicStateCreateInfo
     {

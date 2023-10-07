@@ -87,10 +87,9 @@ pub fn create_vk_buffer(
         requirements: mem_requirements,
         location: mem_location,
         linear: true,
-        allocation_scheme: AllocationScheme::DedicatedBuffer(buffer)
+        allocation_scheme: AllocationScheme::GpuAllocatorManaged
     };
     let allocation = allocator.allocate(&alloc_info).map_err( |e| { log_err!(e); } ).unwrap();
-
     unsafe{ vk_check!( device.bind_buffer_memory(buffer, allocation.memory(), allocation.offset()) ).unwrap(); }
 
     (buffer, allocation)
@@ -194,7 +193,7 @@ pub fn sp_create_vk_buffer(
     let handle: vk::Buffer;
     let allocation: Allocation;
     (handle, allocation) = create_vk_buffer(
-        &vk_ctx.device, &mut vk_ctx.allocator, 
+        &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), 
         label, size, 
         usage, mem_location
     );
@@ -205,6 +204,52 @@ pub fn sp_create_vk_buffer(
         allocation,
         size
     }
+}
+
+/// ### fn sp_create_vk_buffers( ... ) -> Vec\<SpVkBuffer\>
+/// *Creates {count} number of SpVkBuffer in Vec\<\>*
+/// <pre>
+/// - Params
+///     vk_ctx:         <b>&mut</b> SpVkContext
+///     label:          &str                    <i>// Used for debug purposes<i>
+///     usage:          vk::BufferUsageFlags
+///     mem_location:   MemoryLocation          <i>// CpuToGpu, GpuOnly, GpuToCpu, Unknown
+///     size:           vk::DeviceSize          <i>// the size of the buffer in bytes
+///     count:          usize
+/// - Return
+///     Vec&lt;SpVkBuffer&gt;
+/// </pre>
+pub fn sp_create_vk_buffers(
+    vk_ctx: &mut SpVkContext,
+    label: &str,
+    usage: vk::BufferUsageFlags,
+    mem_location: MemoryLocation,
+    size: vk::DeviceSize, count: usize
+) -> Vec<SpVkBuffer>
+{
+    let mut sp_vk_buffers: Vec<SpVkBuffer> = Vec::new();
+
+    for _i in 0..count
+    {
+        let handle: vk::Buffer;
+        let allocation: Allocation;
+        (handle, allocation) = create_vk_buffer(
+            &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), 
+            label, size, 
+            usage, mem_location
+        );
+    
+        sp_vk_buffers.push(
+            SpVkBuffer
+            {
+                handle,
+                allocation,
+                size
+            }
+        );
+    }
+
+    sp_vk_buffers
 }
 
 /// ### fn sp_destroy_vk_buffer( ... )
@@ -220,7 +265,27 @@ pub fn sp_destroy_vk_buffer(vk_ctx: &mut SpVkContext, buffer: SpVkBuffer)
     {
         vk_ctx.device.destroy_buffer(buffer.handle, None);
     }
-    vk_check!( vk_ctx.allocator.free(buffer.allocation) ).unwrap();
+    vk_check!( vk_ctx.allocator.as_mut().unwrap().free(buffer.allocation) ).unwrap();
+}
+
+/// ### fn sp_destroy_vk_buffers( ... )
+/// *Traverses a Vec\<\> of SpVkBuffer and frees its resources*
+/// <pre>
+/// - Params
+///     vk_ctx:     <b>&mut</b> SpVkContext
+///     buffers:    Vec&lt;SpVkBuffer&gt;
+/// </pre>
+pub fn sp_destroy_vk_buffers(vk_ctx: &mut SpVkContext, buffers: &mut Vec<SpVkBuffer>)
+{
+    for _i in 0..buffers.len()
+    {
+        let buffer = buffers.pop().unwrap();
+        unsafe
+        {
+            vk_ctx.device.destroy_buffer(buffer.handle, None);
+        }
+        vk_check!( vk_ctx.allocator.as_mut().unwrap().free(buffer.allocation) ).unwrap();
+    }
 }
 
 /// ### fn sp_create_vk_vertex_buffer_from_file\<T\>( ... ) -> SpVkBuffer
@@ -257,7 +322,7 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
     for (i, v) in mesh.vertices.iter().enumerate()
     {
         let t = mesh.texture_coords[0].as_ref().unwrap()[i];
-        vertices.push( VertexData{ pos: glm::Vec3::new(v.x, v.y, v.z), tc: glm::Vec2::new(t.x, 1.0 - t.y) } );
+        vertices.push( VertexData::new(glm::vec3(v.x, v.y, v.z), glm::vec2(t.x, 1.0 - t.y)));
     }
 
     let mut indices: Vec<u32> = Vec::new();
@@ -286,9 +351,10 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
 
     unsafe
     {
-        let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_vertex.allocation.memory(), staging_vertex.allocation.offset(), vert_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_vertex.allocation.memory(), staging_vertex.allocation.offset(), vert_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        let mapped_ptr = staging_vertex.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
             mapped_ptr.copy_from_nonoverlapping(vertices.as_slice().as_ptr() as *const u8, vert_buffer_size);
-        vk_ctx.device.unmap_memory(staging_vertex.allocation.memory());
+        // vk_ctx.device.unmap_memory(staging_vertex.allocation.memory());
     }
 
     let staging_index_label = String::from(format!("staging index{}", label));
@@ -302,16 +368,17 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
 
     unsafe
     {
-        let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_indices.allocation.memory(), staging_indices.allocation.offset(), index_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_indices.allocation.memory(), staging_indices.allocation.offset(), index_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        let mapped_ptr = staging_indices.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
             mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, index_buffer_size);
-        vk_ctx.device.unmap_memory(staging_indices.allocation.memory());
+        // vk_ctx.device.unmap_memory(staging_indices.allocation.memory());
     }
 
     let vert_label = String::from(format!("vertex {}", label));
     let vert_buffer = sp_create_vk_buffer(
         vk_ctx,
         &vert_label, 
-        usage,
+        usage | vk::BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
         vert_buffer_size as vk::DeviceSize
     );
@@ -320,7 +387,7 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
     let index_buffer = sp_create_vk_buffer(
         vk_ctx,
         &index_label,
-        usage,
+        usage | vk::BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
         index_buffer_size as vk::DeviceSize
     );

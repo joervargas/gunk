@@ -32,13 +32,19 @@ pub fn main_loop(mut app: Application, evloop: EventLoop<()>)
             {
                 handle_device_events(&mut app, event, device_id, control_flow);
             },
-            Event::MainEventsCleared => {},
+            Event::MainEventsCleared => 
+            {
+                app.window.request_redraw(); 
+            },
             Event::RedrawRequested(_window_id) => 
             {
-
+                app.renderer.render(&app.window);
             },
             Event::RedrawEventsCleared => {},
-            Event::LoopDestroyed => {},
+            Event::LoopDestroyed => 
+            { 
+                app.renderer.wait_idle();
+            },
             Event::Suspended => {},
             Event::Resumed => {}
             _ => {}

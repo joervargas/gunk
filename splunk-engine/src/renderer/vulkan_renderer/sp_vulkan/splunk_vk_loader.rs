@@ -242,10 +242,11 @@ pub fn create_vk_instance(window: &Window, entry: &Entry, app_name: CString, app
     let debug_utils_name = &[DebugUtils::name().as_ptr()];
     let extension_names = [ extension_names,  debug_utils_name ].concat();
 
+    let validation_layer = CString::new("VK_LAYER_KHRONOS_validation").unwrap();
     let mut layers: Vec<*const i8> = vec![];
     if VALIDATION
     {
-        layers.push("VK_LAYER_KHRONOS_validation".as_ptr() as *const i8);
+        layers.push(validation_layer.as_ptr());
     }
 
     let create_info = vk::InstanceCreateInfo
@@ -257,7 +258,7 @@ pub fn create_vk_instance(window: &Window, entry: &Entry, app_name: CString, app
         enabled_extension_count: extension_names.len() as u32,
         pp_enabled_extension_names: extension_names.as_slice().as_ptr(),
         enabled_layer_count: layers.len() as u32,
-        pp_enabled_layer_names: layers.as_slice().as_ptr(),
+        pp_enabled_layer_names: layers.as_ptr(),
     };
 
     let instance = unsafe { vk_check!( entry.create_instance(&create_info, None)).unwrap() };

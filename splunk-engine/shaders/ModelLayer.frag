@@ -22,5 +22,5 @@ void main()
             edgeFactor(1.0) // value to interpolate by
         ),
         1.0
-    )
+    );
 }

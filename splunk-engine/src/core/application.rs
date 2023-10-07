@@ -6,9 +6,13 @@ use winit::{
     dpi::PhysicalSize,
 };
 
-use std::string::String;
+use std::{string::String, ffi::CString};
 
 use crate::platform::main_loop;
+use crate::renderer::{
+    renderer_utils::GfxRenderer,
+    vulkan_renderer::vulkan_renderer::VulkanRenderer,
+};
 
 /// ### AppConfig struct
 /// *Configurations for Application and Window startup*
@@ -37,6 +41,7 @@ pub struct Application
 {
     pub config: AppConfig,
     pub window: Window,
+    pub renderer: Box<dyn GfxRenderer>
 }
 
 impl Application
@@ -68,9 +73,17 @@ impl Application
             window.set_inner_size(PhysicalSize::new(config.width, config.height));
         }
         
+        let renderer = Box::new(
+            VulkanRenderer::new(
+                &window, 
+                CString::new(config.title.clone()).unwrap(), 
+                ash::vk::make_api_version(0, 0, 1, 0)
+            )
+        );
         let app = Self{
             config,
-            window
+            window,
+            renderer
         };
 
         (app, evloop)
@@ -79,7 +92,7 @@ impl Application
 
     pub fn init(&mut self)
     {
-
+        self.renderer.init();
     }
 
     /// #### fn Application::run(self, ... )
@@ -102,6 +115,6 @@ impl Drop for Application
 {
     fn drop(&mut self)
     {
-        
+        self.renderer.destroy();
     }
 }

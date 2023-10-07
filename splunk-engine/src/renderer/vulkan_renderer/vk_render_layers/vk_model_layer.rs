@@ -1,7 +1,9 @@
+use std::ffi::CString;
+
 use ash::{self, vk};
 
 use crate::{
-    renderer::vulkan_renderer::sp_vulkan::{
+    renderer::{vulkan_renderer::sp_vulkan::{
         splunk_vk_context::{SpVkContext, sp_create_vk_color_depth_framebuffers},
         splunk_vk_render_pass::{SpVkRenderPass, SpVkRenderPassInfo, ERenderPassBit, sp_create_vk_renderpass, sp_destroy_vk_renderpass}, 
         vk_utils::{
@@ -19,9 +21,9 @@ use crate::{
             get_vk_buffer_write_desc_set, get_vk_image_write_desc_set, sp_destroy_vk_descriptor
         }, 
         splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img}, vertex_data::VertexData
-}, log_info, log_err, vk_check};
+}, renderer_utils::to_shader_path}, log_info, log_err, vk_check, log_warn};
 
-use super::sp_vk_render_layer::SpVkRenderLayer;
+use super::sp_vk_render_layer::{SpVkLayerDraw, SpVk3dLayerUpdate};
 
 pub struct VkModelLayer
 {
@@ -48,7 +50,7 @@ impl VkModelLayer
     {
         let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
         let sampler = create_vk_sampler(&vk_ctx.device);
-        
+
         let (storage_vert, storage_index) = sp_create_vk_vertex_buffer_from_file::<VertexData>(
             vk_ctx, 
             "Duck", 
@@ -70,17 +72,18 @@ impl VkModelLayer
             b_use_depth: true,
             b_clear_depth: true,
             color_format: vk::Format::B8G8R8A8_UNORM,
-            flags: ERenderPassBit::NONE
+            flags: ERenderPassBit::NONE,
+            samples: vk::SampleCountFlags::TYPE_1
         };
 
         let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         let framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
-        let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, vec![]);
+        let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, &Vec::new());
 
         let mut shader_modules: Vec<SpVkShaderModule> = vec![
-            SpVkShaderModule::new(&vk_ctx.device, std::path::Path::new("./shaders/ModelLayer.vert")),
-            SpVkShaderModule::new(&vk_ctx.device, std::path::Path::new("./shaders/ModelLayer.geom")),
-            SpVkShaderModule::new(&vk_ctx.device, std::path::Path::new("./shaders/ModelLayer.frag"))
+            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("ModelLayer.vert").as_path()),
+            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("ModelLayer.geom").as_path()),
+            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("ModelLayer.frag").as_path())
         ];
 
         let pipeline = Self::create_pipeline(
@@ -179,34 +182,39 @@ impl VkModelLayer
             shader_modules: &mut Vec<SpVkShaderModule>,
             renderpass: &SpVkRenderPass,
             layout: &vk::PipelineLayout,
-            custom_extent: Option<vk::Extent2D>
+            _custom_extent: Option<vk::Extent2D>
         ) -> vk::Pipeline
     {
         log_info!("creating VkModelLayer pipeline... ");
 
         let mut shader_stage_infos: Vec<vk::PipelineShaderStageCreateInfo> = Vec::new();
+        let entry_point = CString::new("main").unwrap();
         for shader in shader_modules.iter()
         {
-            shader_stage_infos.push(shader.get_vk_pipeline_info_shader_stage());
+            shader_stage_infos.push(shader.get_vk_pipeline_info_shader_stage(&entry_point));
         }
 
         let vertex_input_info = create_vk_pipeline_info_vertex_input();
         let assembly_info = create_vk_pipeline_info_assembly(vk::PrimitiveTopology::TRIANGLE_LIST, vk::FALSE);
 
-        let mut custom_width: u32 = 0;
-        let mut custom_height: u32 = 0;
-        if custom_extent.is_some()
-        {
-            custom_width = custom_extent.as_ref().unwrap().width.clone();
-            custom_height = custom_extent.as_ref().unwrap().height.clone();
-        }
+        // let mut custom_width: u32 = 0;
+        // let mut custom_height: u32 = 0;
+        // if custom_extent.is_some()
+        // {
+        //     custom_width = custom_extent.as_ref().unwrap().width.clone();
+        //     custom_height = custom_extent.as_ref().unwrap().height.clone();
+        // }
+
+        log_warn!("swapchain extent: ", vk_ctx.swapchain.extent.width, vk_ctx.swapchain.extent.height);
         let viewports: Vec<vk::Viewport> = vec![
             vk::Viewport
             {
                 x: 0.0,
                 y: 0.0,
-                width: if custom_width > 0 { custom_width as f32 } else { vk_ctx.swapchain.extent.width as f32 },
-                height: if custom_height > 0 { custom_height as f32 } else { vk_ctx.swapchain.extent.height as f32 },
+                // width: if custom_width > 0 { custom_width as f32 } else { vk_ctx.swapchain.extent.width as f32 },
+                // height: if custom_height > 0 { custom_height as f32 } else { vk_ctx.swapchain.extent.height as f32 },
+                width: vk_ctx.swapchain.extent.width as f32,
+                height: vk_ctx.swapchain.extent.height as f32,
                 min_depth: 0.0,
                 max_depth: 1.0
             }
@@ -218,8 +226,10 @@ impl VkModelLayer
                 extent: 
                     vk::Extent2D
                     { 
-                        width: if custom_width > 0 { custom_width } else { vk_ctx.swapchain.extent.width },
-                        height: if custom_height > 0 { custom_height } else { vk_ctx.swapchain.extent.height }
+                        // width: if custom_width > 0 { custom_width } else { vk_ctx.swapchain.extent.width },
+                        // height: if custom_height > 0 { custom_height } else { vk_ctx.swapchain.extent.height }
+                        width: vk_ctx.swapchain.extent.width,
+                        height: vk_ctx.swapchain.extent.height
                     }
             }
         ];
@@ -231,14 +241,15 @@ impl VkModelLayer
         let color_attachments: Vec<vk::PipelineColorBlendAttachmentState> = vec![
             create_vk_pipeline_info_color_blend_attachment(true)
         ];
-        let color_blending_info = create_vk_pipeline_info_color_blend(color_attachments);
+        let color_blending_info = create_vk_pipeline_info_color_blend(&color_attachments);
 
         let depth_stencil_info = create_vk_pipeline_info_depth_stencil();
 
         let dynamic_states: Vec<vk::DynamicState> = vec![
+            vk::DynamicState::VIEWPORT,
             vk::DynamicState::SCISSOR
         ];
-        let dynamic_info = create_vk_pipeline_info_dynamic_states(dynamic_states);
+        let dynamic_info = create_vk_pipeline_info_dynamic_states(&dynamic_states);
 
         let tessellation_info = create_vk_pipeline_info_tessellation(0);
 
@@ -326,7 +337,7 @@ impl VkModelLayer
         unsafe{ vk_ctx.device.cmd_end_render_pass(*cmd_buffer); }
     }
 
-    fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, )
+    fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
             vk_ctx.device.cmd_draw(*cmd_buffer, (self.storage_index.as_ref().unwrap().size / std::mem::size_of::<u32>() as vk::DeviceSize) as u32, 1, 0, 0);
@@ -335,7 +346,8 @@ impl VkModelLayer
 
 }
 
-impl SpVkRenderLayer for VkModelLayer
+
+impl SpVkLayerDraw for VkModelLayer
 {
     fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
     {
@@ -366,5 +378,14 @@ impl SpVkRenderLayer for VkModelLayer
             vk_ctx.device.destroy_pipeline_layout(self.pipeline_layout, None);
             vk_ctx.device.destroy_pipeline(self.pipeline, None);
         }
+    }
+}
+
+
+impl SpVk3dLayerUpdate for VkModelLayer
+{
+    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage, _current_img: u32)
+    {
+        todo!()
     }
 }

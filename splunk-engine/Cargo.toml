@@ -19,7 +19,7 @@ nalgebra-glm = "0.18"
 rapier3d = "0.17"
 rapier2d = "0.17"
 image = "0.24"
-gpu-allocator = "0.22"
+gpu-allocator = "0.23"
 shaderc = "0.8.2"
 russimp = "2.0"
 

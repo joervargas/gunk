@@ -20,7 +20,7 @@ fn main() -> Result<()>
 
     let mut paths_to_copy = Vec::new();
     paths_to_copy.push("shaders/");
-    paths_to_copy.push("assets");
+    paths_to_copy.push("assets/");
 
     copy_items(&paths_to_copy, out_dir, &copy_options)?;
 

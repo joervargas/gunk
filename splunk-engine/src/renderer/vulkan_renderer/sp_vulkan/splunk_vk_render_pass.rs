@@ -82,7 +82,8 @@ pub struct SpVkRenderPassInfo
     pub color_format:       vk::Format,
     pub b_use_depth:        bool,
     pub b_clear_depth:      bool,
-    pub flags:              ERenderPassBit
+    pub flags:              ERenderPassBit,
+    pub samples:            vk::SampleCountFlags
 }
 
 /// ### SpVkRenderPass struct
@@ -104,7 +105,7 @@ pub struct SpVkRenderPass
 /// - Params
 ///     instance:       &ash::Instance
 ///     vk_ctx:         &SpVkContext
-///     info:           &SpVkRenderPassInfo
+///     info:           SpVkRenderPassInfo
 /// - Return
 ///     SpVkRenderpass
 /// </pre>
@@ -124,7 +125,7 @@ pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, i
         {
             flags: vk::AttachmentDescriptionFlags::empty(),
             format: info.color_format,
-            samples: vk::SampleCountFlags::TYPE_1,
+            samples: info.samples,
             load_op: if offscreen_internal { vk::AttachmentLoadOp::LOAD} else { if info.b_clear_color { vk::AttachmentLoadOp::CLEAR } else { vk::AttachmentLoadOp::LOAD }},
             store_op: vk::AttachmentStoreOp::STORE,
             stencil_load_op: vk::AttachmentLoadOp::DONT_CARE,
@@ -158,7 +159,7 @@ pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, i
         {
             flags: vk::AttachmentDescriptionFlags::empty(),
             format: find_vk_format_depth_img(instance, &vk_ctx.physical_device),
-            samples: vk::SampleCountFlags::TYPE_1,
+            samples: info.samples,
             load_op: if offscreen_internal { vk::AttachmentLoadOp::LOAD} else { if info.b_clear_depth { vk::AttachmentLoadOp::CLEAR } else { vk::AttachmentLoadOp::LOAD }},
             store_op: vk::AttachmentStoreOp::STORE,
             stencil_load_op: vk::AttachmentLoadOp::DONT_CARE,

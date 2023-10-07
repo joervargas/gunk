@@ -29,5 +29,5 @@ void main()
         EmitVertex();
     }
 
-    EndPrimitive()
+    EndPrimitive();
 }
