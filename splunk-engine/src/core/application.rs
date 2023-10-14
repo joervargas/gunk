@@ -27,21 +27,22 @@ use crate::renderer::{
 /// </pre>
 pub struct AppConfig
 {
-    pub title: String,
-    pub width: u32,
-    pub height: u32,
-    pub b_fullscreen: bool, // is fullscreen
-    pub b_resizable: bool, // is resizable
-    pub b_border: bool,  // has border
+    pub title:          String,
+    pub width:          u32,
+    pub height:         u32,
+    pub b_fullscreen:   bool, // is fullscreen
+    pub b_resizable:    bool, // is resizable
+    pub b_border:       bool,  // has border
 }
 
 /// ### Application struct
 /// *Contains members necessary for a functioning application*
 pub struct Application
 {
-    pub config: AppConfig,
-    pub window: Window,
-    pub renderer: Box<dyn GfxRenderer>
+    pub config:     AppConfig,
+    pub window:     Window,
+    pub renderer:   Box<dyn GfxRenderer>,
+    pub minimized:  bool
 }
 
 impl Application
@@ -58,11 +59,8 @@ impl Application
     {
         let evloop: EventLoop<()> = EventLoop::new();
         let window: Window = Window::new(&evloop).unwrap();
-
-        if config.b_resizable
-        {
-            window.set_resizable(true);
-        }
+        
+        window.set_resizable(config.b_resizable);
 
         if config.b_fullscreen
         {
@@ -80,10 +78,12 @@ impl Application
                 ash::vk::make_api_version(0, 0, 1, 0)
             )
         );
-        let app = Self{
+        let app = Self
+        {
             config,
             window,
-            renderer
+            renderer,
+            minimized: false
         };
 
         (app, evloop)
@@ -106,6 +106,11 @@ impl Application
     pub fn run(self, evloop: EventLoop<()>)
     {
         main_loop(self, evloop);
+    }
+
+    pub fn resized(&mut self)
+    {
+        self.renderer.resized();
     }
 
 }

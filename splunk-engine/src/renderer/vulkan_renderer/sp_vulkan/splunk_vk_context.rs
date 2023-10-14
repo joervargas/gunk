@@ -233,8 +233,9 @@ impl SpVkSwapchain
 /// </pre>
 pub struct  SpVkCommands
 {
-    pub pool:       vk::CommandPool,
-    pub buffers:    Vec<vk::CommandBuffer>
+    pub pool:               vk::CommandPool,
+    pub buffers:            Vec<vk::CommandBuffer>,
+    current_frame_index:    usize
 }
 
 impl SpVkCommands
@@ -254,7 +255,7 @@ impl SpVkCommands
         let pool = create_vk_command_pool(device, queue_family_index);
         let buffers = allocate_vk_command_buffers(device, &pool, buffer_count);
 
-        Self{ pool, buffers }
+        Self{ pool, buffers, current_frame_index: 0 }
     }
 
     /// ### fn SpVkCommands::destroy( &self, ... )
@@ -272,11 +273,109 @@ impl SpVkCommands
         }
     }
 
-    pub fn reset(&self, device: &ash::Device)
+    pub fn reset_pool(&self, device: &ash::Device)
     {
         unsafe{
             vk_check!(device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty()));
         }
+    }
+
+    pub fn reset_buffer(&self, device: &ash::Device)
+    {
+        unsafe{
+            vk_check!(device.reset_command_buffer(self.buffers[self.current_frame_index], vk::CommandBufferResetFlags::empty())).unwrap();
+        }
+    }
+
+    pub fn set_next_index(&mut self, next_index: usize)
+    {
+        self.current_frame_index = next_index;
+    }
+
+    pub fn get_current_buffer(&self) -> &vk::CommandBuffer
+    {
+        &self.buffers[self.current_frame_index]
+    }
+}
+
+pub struct SpVkFrameSync
+{
+    pub wait_semaphores:    Vec<vk::Semaphore>,
+    pub render_semaphores:  Vec<vk::Semaphore>,
+    pub in_flight_fences:   Vec<vk::Fence>,
+    frames_in_flight:       usize,
+    current_frame_index:    usize,
+}
+
+impl SpVkFrameSync
+{
+    pub fn new(device: &ash::Device, frames_in_flight: usize) -> Self
+    {
+        let mut wait_semaphores: Vec<vk::Semaphore> = Vec::new();
+        let mut render_semaphores: Vec<vk::Semaphore> = Vec::new();
+        let mut in_flight_fences: Vec<vk::Fence> = Vec::new();
+
+        for _i in 0..frames_in_flight
+        {
+            wait_semaphores.push(create_vk_semaphore(device));
+            render_semaphores.push(create_vk_semaphore(device));
+            in_flight_fences.push(create_vk_fence(device, true));
+        }
+
+        Self
+        {
+            wait_semaphores,
+            render_semaphores,
+            in_flight_fences,
+            frames_in_flight,
+            current_frame_index: 0
+        }
+    }
+
+    pub fn destroy(&mut self, device: &ash::Device)
+    {
+        for i in 0..self.frames_in_flight
+        {
+            unsafe
+            {
+                device.destroy_semaphore(self.wait_semaphores[i], None);
+                device.destroy_semaphore(self.render_semaphores[i], None);
+                device.destroy_fence(self.in_flight_fences[i], None);
+            }
+        }
+        self.wait_semaphores.clear();
+        self.render_semaphores.clear();
+        self.in_flight_fences.clear();
+    }
+
+    pub fn get_num_frames_in_flight(&self) -> usize
+    {
+        self.frames_in_flight
+    }
+
+    pub fn get_current_frame_index(&self) -> usize
+    {
+        self.current_frame_index
+    }
+
+    pub fn set_next_frame_index(&mut self)
+    {
+        self.current_frame_index = (self.current_frame_index + 1) % self.frames_in_flight;
+    }
+
+    pub fn get_current_wait_semaphore(&self) -> &vk::Semaphore
+    {
+        &self.wait_semaphores[self.current_frame_index]
+    }
+
+    pub fn get_current_render_semaphore(&self) -> &vk::Semaphore
+    {
+        &self.render_semaphores[self.current_frame_index]
+    }
+
+    pub fn get_current_in_flight_fence(&self) -> &vk::Fence
+    {
+        &self.in_flight_fences[self.current_frame_index]
     }
 }
 
@@ -301,8 +400,9 @@ pub struct SpVkContext
     pub queues:             SpVkQueues,
     pub swapchain:          SpVkSwapchain,
     pub draw_cmds:          SpVkCommands,
-    pub render_semaphore:   vk::Semaphore,
-    pub wait_semaphore:     vk::Semaphore,
+    // pub render_semaphore:   vk::Semaphore,
+    // pub wait_semaphore:     vk::Semaphore,
+    pub frame_sync:         SpVkFrameSync,
 }
 
 impl SpVkContext
@@ -332,10 +432,9 @@ impl SpVkContext
 
         let swapchain = SpVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
 
-        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), swapchain.images.len() as u32);
-
-        let render_semaphore = create_vk_semaphore(&device);
-        let wait_semaphore = create_vk_semaphore(&device);
+        let frame_sync = SpVkFrameSync::new(&device, 2);
+        
+        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), frame_sync.get_num_frames_in_flight() as u32);
 
         log_info!("VulkanContext created");
         Self
@@ -346,8 +445,7 @@ impl SpVkContext
             queues,
             swapchain,
             draw_cmds,
-            render_semaphore,
-            wait_semaphore
+            frame_sync
         }
     }
 
@@ -359,14 +457,8 @@ impl SpVkContext
     /// </pre>
     pub fn destroy(&mut self)
     {
-
-        unsafe
-        {
-            self.device.destroy_semaphore(self.render_semaphore, None);
-            self.device.destroy_semaphore(self.wait_semaphore, None);
-        }
-
-        self.swapchain.destroy(&self.device);
+        self.clean_swapchain();
+        self.frame_sync.destroy(&self.device);
         self.draw_cmds.destroy(&self.device);
         drop(self.allocator.take().unwrap());
         unsafe
@@ -375,9 +467,30 @@ impl SpVkContext
         }
     }
 
+    pub fn clean_swapchain(&mut self)
+    {
+        self.swapchain.destroy(&self.device);
+    }
+
+    pub fn recreate_swapchain(&mut self, loader: &SpVkLoader, width: u32, height: u32)
+    {
+        self.swapchain = SpVkSwapchain::new(loader, &self.device, &self.physical_device, &self.queues.get_index_list(), width, height);
+    }
+
     pub fn reset_draw_cmd_pool(&self)
     {
-        self.draw_cmds.reset(&self.device);
+        self.draw_cmds.reset_pool(&self.device);
+    }
+
+    pub fn reset_current_draw_cmd_buffer(&self)
+    {
+        self.draw_cmds.reset_buffer(&self.device);
+    }
+
+    pub fn set_next_frame_index(&mut self) 
+    {
+        self.frame_sync.set_next_frame_index();
+        self.draw_cmds.set_next_index(self.frame_sync.get_current_frame_index());
     }
 
 }
@@ -522,4 +635,15 @@ pub fn sp_create_vk_color_only_framebuffers(
     }
 
     framebuffers
+}
+
+pub fn sp_destroy_vk_framebuffers(device: &ash::Device, framebuffers: &mut Vec<vk::Framebuffer>)
+{
+    unsafe{
+        for framebuffer in framebuffers.iter()
+        {
+            device.destroy_framebuffer(*framebuffer, None);
+        }
+    }
+    framebuffers.clear();
 }

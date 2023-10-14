@@ -12,6 +12,8 @@ pub trait GfxRenderer
 
     fn render(&mut self, window: &Window);
 
+    fn resized(&mut self);
+
     fn wait_idle(&self);
 }
 

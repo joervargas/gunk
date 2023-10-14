@@ -1,5 +1,5 @@
 use crate::renderer::renderer_utils;
-use crate::{log_err, vk_check};
+use crate::{log_err, vk_check, log_info};
 
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::map_vk_allocation_data;
 use crate::renderer::vulkan_renderer::vk_render_layers::sp_vk_render_layer::SpVk3dLayerUpdate;
@@ -38,8 +38,9 @@ pub struct VulkanRenderer
     vk_begin_layer:         VkBeginLayer,
     vk_end_layer:           VkEndLayer,
     pub layers3d:           Vk3dLayerList,
-    pub layers2d:           Vk2dLayerList
+    pub layers2d:           Vk2dLayerList,
     // pub layers:             [Box<dyn SpVkLayerDraw>; 4],
+    has_resized:            bool,
 }
 
 impl VulkanRenderer
@@ -97,8 +98,41 @@ impl VulkanRenderer
             vk_begin_layer,
             vk_end_layer,
             layers3d,
-            layers2d
+            layers2d,
+            has_resized: false
         }
+    }
+
+    pub fn cleanup_swapchain(&mut self)
+    {
+        log_info!("Cleaning VkSwapchain and VkFramebuffers...");
+        self.vk_begin_layer.cleanup_framebuffers(&self.vk_ctx.device);
+        self.layers2d.cleanup_framebuffers(&self.vk_ctx.device);
+        self.layers3d.cleanup_framebuffers(&self.vk_ctx.device);
+        self.vk_end_layer.cleanup_framebuffers(&self.vk_ctx.device);
+
+        self.vk_ctx.clean_swapchain();
+        
+        log_info!("VkSwapchain and VkFramebuffers cleaned.");
+    }
+
+    pub fn recreate_swapchain(&mut self, window: &Window)
+    {
+        log_info!("Recreating VkSwapchain and Framebuffers...");
+
+        unsafe { vk_check!(self.vk_ctx.device.device_wait_idle()).unwrap(); }
+
+        self.cleanup_swapchain();
+
+        let inner_size = window.inner_size();
+        self.vk_ctx.recreate_swapchain(&self.loader, inner_size.width, inner_size.height);
+
+        self.vk_begin_layer.recreate_framebuffers(&self.vk_ctx, self.depth_img.as_ref());
+        self.layers3d.recreate_framebuffers(&self.vk_ctx, self.depth_img.as_ref());
+        self.layers2d.recreate_framebuffers(&self.vk_ctx, None);
+        self.vk_end_layer.recreate_framebuffers(&self.vk_ctx, self.depth_img.as_ref());
+
+        log_info!("VkSwapchain and VkFramebuffers recreated.");
     }
 
 }
@@ -144,7 +178,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
 
     fn draw_frame(&mut self, _window: &Window, current_img: u32) 
     {
-        let draw_buffer = self.vk_ctx.draw_cmds.buffers[current_img as usize];
+        let draw_buffer = *self.vk_ctx.draw_cmds.get_current_buffer();
 
         let draw_cmd_begin_info = vk::CommandBufferBeginInfo
         {
@@ -169,11 +203,25 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
 
     fn render(&mut self, window: &Window) 
     {
-        // TODO add multiple frames in flight capabilities for better performance
+        unsafe { vk_check!(self.vk_ctx.device.wait_for_fences(&[*self.vk_ctx.frame_sync.get_current_in_flight_fence()], true, std::u64::MAX)).unwrap(); }
+
         let (current_img, _is_sub_optimal) = unsafe {
-            self.vk_ctx.swapchain.loader.acquire_next_image(self.vk_ctx.swapchain.handle, std::u64::MAX, self.vk_ctx.wait_semaphore, vk::Fence::null()).map_err(|e| { log_err!(e); } ).unwrap()
+            self.vk_ctx.swapchain.loader.acquire_next_image(self.vk_ctx.swapchain.handle, std::u64::MAX, *self.vk_ctx.frame_sync.get_current_wait_semaphore(), vk::Fence::null()).map_err(
+                |vk_result| 
+                { 
+                    match vk_result
+                    {
+                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); }
+                        _ => { log_err!(vk_result); }
+                    }
+                }  
+            ).unwrap()
         };
-        self.vk_ctx.reset_draw_cmd_pool();
+
+        unsafe { vk_check!(self.vk_ctx.device.reset_fences( &[*self.vk_ctx.frame_sync.get_current_in_flight_fence()] )).unwrap(); }
+
+        // self.vk_ctx.reset_draw_cmd_pool();
+        self.vk_ctx.reset_current_draw_cmd_buffer();
 
         self.update(window, current_img);
         self.draw_frame(window, current_img);
@@ -185,22 +233,25 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             s_type: vk::StructureType::SUBMIT_INFO,
             p_next: std::ptr::null(),
             wait_semaphore_count: 1,
-            p_wait_semaphores: &self.vk_ctx.wait_semaphore,
+            // p_wait_semaphores: &self.vk_ctx.wait_semaphore,
+            p_wait_semaphores: self.vk_ctx.frame_sync.get_current_wait_semaphore(),
             p_wait_dst_stage_mask: wait_stages.as_ptr(),
             command_buffer_count: 1,
-            p_command_buffers: &self.vk_ctx.draw_cmds.buffers[current_img as usize],
+            p_command_buffers: self.vk_ctx.draw_cmds.get_current_buffer(),
             signal_semaphore_count: 1,
-            p_signal_semaphores: &self.vk_ctx.render_semaphore
+            // p_signal_semaphores: &self.vk_ctx.render_semaphore
+            p_signal_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore()
         };
 
-        unsafe { vk_check!(self.vk_ctx.device.queue_submit(self.vk_ctx.queues.graphics.handle, &[submit_info], vk::Fence::null())); }
+        unsafe { vk_check!(self.vk_ctx.device.queue_submit(self.vk_ctx.queues.graphics.handle, &[submit_info], *self.vk_ctx.frame_sync.get_current_in_flight_fence())); }
 
         let present_info = vk::PresentInfoKHR
         {
             s_type: vk::StructureType::PRESENT_INFO_KHR,
             p_next: std::ptr::null(),
             wait_semaphore_count: 1,
-            p_wait_semaphores: &self.vk_ctx.render_semaphore,
+            // p_wait_semaphores: &self.vk_ctx.render_semaphore,
+            p_wait_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore(),
             swapchain_count: 1,
             p_swapchains: &self.vk_ctx.swapchain.handle,
             p_image_indices: &current_img,
@@ -209,13 +260,35 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
 
         unsafe
         {
-            let _is_sub_optimal = vk_check!(self.vk_ctx.swapchain.loader.queue_present(self.vk_ctx.queues.graphics.handle, &present_info)).unwrap();
+            let is_sub_optimal = self.vk_ctx.swapchain.loader.queue_present(self.vk_ctx.queues.graphics.handle, &present_info).map_err(
+                |vk_result|
+                {
+                    match vk_result
+                    {
+                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); }
+                        _ => { log_err!(vk_result); }
+                    }
+                }
+            ).unwrap();
+            if is_sub_optimal || self.has_resized
+            {
+                self.has_resized = false;
+                self.recreate_swapchain(window);
+            }
 
             vk_check!(self.vk_ctx.device.device_wait_idle());
-        }  
+        }
+
+        self.vk_ctx.set_next_frame_index();
     }
 
-    fn wait_idle(&self) {
+    fn resized(&mut self)
+    {
+        self.has_resized = true;
+    }
+
+    fn wait_idle(&self)
+    {
         unsafe { vk_check!(self.vk_ctx.device.device_wait_idle()); }
     }
 }

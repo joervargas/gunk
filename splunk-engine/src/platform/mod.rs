@@ -38,7 +38,10 @@ pub fn main_loop(mut app: Application, evloop: EventLoop<()>)
             },
             Event::RedrawRequested(_window_id) => 
             {
-                app.renderer.render(&app.window);
+                if !app.minimized
+                {
+                    app.renderer.render(&app.window);
+                }
             },
             Event::RedrawEventsCleared => {},
             Event::LoopDestroyed => 
@@ -56,7 +59,22 @@ pub fn main_loop(mut app: Application, evloop: EventLoop<()>)
 /// *Window events go here*
 pub fn handle_window_events(app: &mut Application, events: WindowEvent, _window_id: WindowId, control_flow: &mut ControlFlow)
 {
-
+    match events
+    {
+        WindowEvent::CloseRequested =>
+        {
+            *control_flow = ControlFlow::Exit;
+        }
+        WindowEvent::Resized(size) => 
+        {
+            if size.width == 0 || size.height == 0
+            {
+                app.minimized = true;
+            }
+            app.resized();
+        },
+        _ => {}
+    }
 }
 
 /// ### fn handle_device_events( ... )

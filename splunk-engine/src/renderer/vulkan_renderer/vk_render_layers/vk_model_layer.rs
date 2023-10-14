@@ -4,7 +4,7 @@ use ash::{self, vk};
 
 use crate::{
     renderer::{vulkan_renderer::sp_vulkan::{
-        splunk_vk_context::{SpVkContext, sp_create_vk_color_depth_framebuffers},
+        splunk_vk_context::{SpVkContext, sp_create_vk_color_depth_framebuffers, sp_destroy_vk_framebuffers},
         splunk_vk_render_pass::{SpVkRenderPass, SpVkRenderPassInfo, ERenderPassBit, sp_create_vk_renderpass, sp_destroy_vk_renderpass}, 
         vk_utils::{
             create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_assembly, 
@@ -68,9 +68,9 @@ impl VkModelLayer
 
         let renderpass_info = SpVkRenderPassInfo{
             b_use_color: true,
-            b_clear_color: true,
+            b_clear_color: false,
             b_use_depth: true,
-            b_clear_depth: true,
+            b_clear_depth: false,
             color_format: vk::Format::B8G8R8A8_UNORM,
             flags: ERenderPassBit::NONE,
             samples: vk::SampleCountFlags::TYPE_1
@@ -289,54 +289,6 @@ impl VkModelLayer
         pipeline
     }
 
-    fn begin_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
-    {
-        let screen_rect = vk::Rect2D
-        {
-            offset: vk::Offset2D{ x: 0, y: 0 },
-            extent: vk_ctx.swapchain.extent
-        };
-
-        let clear_values = [
-            vk::ClearValue 
-            {
-                color: vk::ClearColorValue 
-                {
-                    float32: [0.0, 0.0, 0.0, 1.0],
-                },
-            }
-        ];
-
-        let render_begin_info = vk::RenderPassBeginInfo
-        {
-            s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
-            p_next: std::ptr::null(),
-            render_pass: self.renderpass.handle,
-            framebuffer: self.framebuffers[current_image],
-            render_area: screen_rect,
-            clear_value_count: clear_values.len() as u32,
-            p_clear_values: clear_values.as_ptr()
-        };
-
-        unsafe
-        {
-            vk_ctx.device.cmd_begin_render_pass(*cmd_buffer, &render_begin_info, vk::SubpassContents::INLINE);
-
-            vk_ctx.device.cmd_bind_pipeline(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
-
-            vk_ctx.device.cmd_bind_descriptor_sets(
-                *cmd_buffer, vk::PipelineBindPoint::GRAPHICS, 
-                self.pipeline_layout, 0, 
-                &[self.descriptor.sets[current_image]], &[0]
-            );
-        }
-    }
-
-    fn end_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
-    {
-        unsafe{ vk_ctx.device.cmd_end_render_pass(*cmd_buffer); }
-    }
-
     fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
@@ -351,7 +303,7 @@ impl SpVkLayerDraw for VkModelLayer
 {
     fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
     {
-        self.begin_renderpass(vk_ctx, cmd_buffer, *current_image as usize);
+        self.begin_renderpass(vk_ctx, cmd_buffer, self.renderpass.handle, self.pipeline, self.framebuffers[*current_image as usize]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
@@ -365,13 +317,7 @@ impl SpVkLayerDraw for VkModelLayer
 
         sp_destroy_vk_descriptor(vk_ctx, &self.descriptor);
 
-        unsafe{
-            for framebuffer in self.framebuffers.iter()
-            {
-                vk_ctx.device.destroy_framebuffer(*framebuffer, None);
-            }
-        }
-
+        self.cleanup_framebuffers(&vk_ctx.device);
         sp_destroy_vk_renderpass(vk_ctx, &self.renderpass);
 
         unsafe {
@@ -379,6 +325,17 @@ impl SpVkLayerDraw for VkModelLayer
             vk_ctx.device.destroy_pipeline(self.pipeline, None);
         }
     }
+
+    fn cleanup_framebuffers(&mut self, device: &ash::Device)
+    {
+        sp_destroy_vk_framebuffers(device, &mut self.framebuffers);
+    }
+
+    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: Option<&SpVkImage>)
+    {
+        self.framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &self.renderpass, &depth_img.unwrap().view);
+    }
+
 }
 
 
@@ -388,4 +345,5 @@ impl SpVk3dLayerUpdate for VkModelLayer
     {
         todo!()
     }
+
 }

@@ -429,6 +429,28 @@ pub fn create_vk_semaphore(device: &ash::Device) -> vk::Semaphore
     }
 }
 
+/// ### fn create_vk_fence( ... ) -> vk::Fence
+/// *Creates a vk::Fence*
+/// <pre>
+/// - Params
+///     device:         &ash::Device
+///     is_signaled:    bool
+/// - Return
+///       vk::Fence
+/// </pre>
+pub fn create_vk_fence(device: &ash::Device, is_signaled: bool) -> vk::Fence
+{
+    let create_info = vk::FenceCreateInfo
+    {
+        s_type: vk::StructureType::FENCE_CREATE_INFO,
+        p_next: std::ptr::null(),
+        flags: if is_signaled { vk::FenceCreateFlags::SIGNALED } else { vk::FenceCreateFlags::empty() }
+    };
+    unsafe{
+        vk_check!(device.create_fence(&create_info, None)).unwrap()
+    }
+}
+
 /// ### fn create_vk_pipeline_layout( ... ) -> vk::PipelineLayout
 /// *Creates a vk::PipelineLayout*
 /// <pre>

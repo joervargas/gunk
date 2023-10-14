@@ -3,7 +3,8 @@ use std::ffi::CString;
 use ash::{self, vk};
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::sp_create_vk_color_only_framebuffers;
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::SpVkImage;
 use crate::renderer::vulkan_renderer::sp_vulkan::vk_utils::{
     create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_assembly,
     create_vk_pipeline_info_dynamic_states, create_vk_pipeline_info_viewport, 
@@ -18,7 +19,7 @@ use crate::renderer::vulkan_renderer::sp_vulkan::{
     vk_shader_utils::SpVkShaderModule
 };
 
-use crate::{log_info, log_warn, log_err};
+use crate::{log_info, log_err};
 
 use super::sp_vk_render_layer::{SpVkLayerDraw, SpVk2dLayerUpdate};
 
@@ -42,7 +43,7 @@ impl VkSimple2dLayer
     {
         let renderpass_info = SpVkRenderPassInfo{
             b_use_color: true,
-            b_clear_color: true,
+            b_clear_color: false,
             b_use_depth: false,
             b_clear_depth: false,
             color_format: vk::Format::B8G8R8A8_UNORM,
@@ -95,7 +96,6 @@ impl VkSimple2dLayer
         let vertex_input_info = create_vk_pipeline_info_vertex_input();
         let assembly_info = create_vk_pipeline_info_assembly(vk::PrimitiveTopology::TRIANGLE_LIST, vk::FALSE);
 
-        log_warn!("swapchain extent: ", vk_ctx.swapchain.extent.width, vk_ctx.swapchain.extent.height);
         let viewports: Vec<vk::Viewport> = vec![
             vk::Viewport
             {
@@ -177,85 +177,6 @@ impl VkSimple2dLayer
         pipeline
     }
 
-    fn begin_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
-    {
-        let screen_rect = vk::Rect2D
-        {
-            offset: vk::Offset2D{ x: 0, y: 0 },
-            extent: vk_ctx.swapchain.extent
-        };
-
-        let clear_values = [
-            vk::ClearValue 
-            {
-                color: vk::ClearColorValue 
-                {
-                    float32: [0.0, 0.0, 0.0, 1.0],
-                },
-            }
-        ];
-
-        let render_begin_info = vk::RenderPassBeginInfo
-        {
-            s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
-            p_next: std::ptr::null(),
-            render_pass: self.renderpass.handle,
-            framebuffer: self.framebuffers[current_image],
-            render_area: screen_rect,
-            clear_value_count: clear_values.len() as u32,
-            p_clear_values: clear_values.as_ptr()
-        };
-
-        let viewports: Vec<vk::Viewport> = vec![
-            vk::Viewport
-            {
-                x: 0.0,
-                y: 0.0,
-                // width: if custom_width > 0 { custom_width as f32 } else { vk_ctx.swapchain.extent.width as f32 },
-                // height: if custom_height > 0 { custom_height as f32 } else { vk_ctx.swapchain.extent.height as f32 },
-                width: vk_ctx.swapchain.extent.width as f32,
-                height: vk_ctx.swapchain.extent.height as f32,
-                min_depth: 0.0,
-                max_depth: 1.0
-            }
-        ];
-        let scissors: Vec<vk::Rect2D> = vec![
-            vk::Rect2D
-            {
-                offset: vk::Offset2D{ x: 0, y: 0 },
-                extent: 
-                    vk::Extent2D
-                    { 
-                        // width: if custom_width > 0 { custom_width } else { vk_ctx.swapchain.extent.width },
-                        // height: if custom_height > 0 { custom_height } else { vk_ctx.swapchain.extent.height }
-                        width: vk_ctx.swapchain.extent.width,
-                        height: vk_ctx.swapchain.extent.height
-                    }
-            }
-        ];
-
-        unsafe
-        {
-            vk_ctx.device.cmd_begin_render_pass(*cmd_buffer, &render_begin_info, vk::SubpassContents::INLINE);
-
-            vk_ctx.device.cmd_bind_pipeline(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
-
-            vk_ctx.device.cmd_set_viewport(*cmd_buffer, 0, &viewports.as_slice());
-            vk_ctx.device.cmd_set_scissor(*cmd_buffer, 0, &scissors.as_slice());
-
-            // vk_ctx.device.cmd_bind_descriptor_sets(
-            //     *cmd_buffer, vk::PipelineBindPoint::GRAPHICS, 
-            //     self.pipeline_layout, 0, 
-            //     &[], &[0]
-            // );
-        }
-    }
-
-    fn end_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
-    {
-        unsafe{ vk_ctx.device.cmd_end_render_pass(*cmd_buffer); }
-    }
-
     fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
@@ -269,26 +190,32 @@ impl SpVkLayerDraw for VkSimple2dLayer
 {
     fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
     {
-        self.begin_renderpass(vk_ctx, cmd_buffer, *current_image as usize);
+        // self.begin_renderpass(vk_ctx, cmd_buffer, *current_image as usize);
+        self.begin_renderpass(vk_ctx, cmd_buffer, self.renderpass.handle, self.pipeline, self.framebuffers[*current_image as usize]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
     {
-        unsafe{
-            for framebuffer in self.framebuffers.iter()
-            {
-                vk_ctx.device.destroy_framebuffer(*framebuffer, None);
-            }
-        }
-
+        self.cleanup_framebuffers(&vk_ctx.device);
         sp_destroy_vk_renderpass(vk_ctx, &self.renderpass);
         unsafe {
             vk_ctx.device.destroy_pipeline_layout(self.pipeline_layout, None);
             vk_ctx.device.destroy_pipeline(self.pipeline, None);
         }
     }
+
+    fn cleanup_framebuffers(&mut self, device: &ash::Device)
+    {
+        sp_destroy_vk_framebuffers(device, &mut self.framebuffers);   
+    }
+
+    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, _depth_img: Option<&SpVkImage>)
+    {
+        self.framebuffers = sp_create_vk_color_only_framebuffers(vk_ctx, &self.renderpass);
+    }
+
 }
 
 impl SpVk2dLayerUpdate for VkSimple2dLayer
@@ -296,4 +223,5 @@ impl SpVk2dLayerUpdate for VkSimple2dLayer
     fn update(&self, _vk_ctx: &SpVkContext, _current_img: u32)
     {
     }
+
 }
