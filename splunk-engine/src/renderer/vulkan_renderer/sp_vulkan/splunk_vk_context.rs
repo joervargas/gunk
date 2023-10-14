@@ -1,26 +1,35 @@
 use ash::{ vk, Device };
 use gpu_allocator::vulkan::Allocator;
 
-use crate::{log_err, log_info, vk_check};
+use crate::{log_info, vk_check};
 
+use super::splunk_vk_render_pass::SpVkRenderPass;
 use super::vk_utils::*;
 use super::splunk_vk_loader::SpVkLoader;
 use super::splunk_vk_img::create_vk_image_view;
-use super::splunk_vk_render_pass::SpVkRenderPass;
-use super::vk_shader_utils::{ 
-    SpVkShaderModule, 
-    sp_create_shader_module, sp_destroy_shader_module, 
-    sp_get_vk_shader_create_info, get_vk_shader_stage_from_filename
-};
 
+/// ### SpVkQueue struct
+/// *Contain Vulkan queue family index and a VkQueue handle*
+/// <pre>
+/// - Members
+///     index:      Option&lt;u32&gt;   <i>// Queue family index</i>
+///     handle:     vk::Queue     <i>// VkQueue handle</i>
+/// </pre>
 pub struct SpVkQueue
 {
-    pub index: Option<u32>,
-    pub handle: vk::Queue,
+    pub index:      Option<u32>,
+    pub handle:     vk::Queue,
 }
 
 impl SpVkQueue
 {
+    /// ### SpVkQueue::new() -> SpVkQueue
+    /// *Returns a new instance of SpVkQueue*<br>
+    /// *Index and handle are not set*
+    /// <pre>
+    /// - Return
+    ///     SpVkQueue
+    /// </pre>
     fn new() -> Self
     {
         Self
@@ -31,13 +40,27 @@ impl SpVkQueue
     }
 }
 
+/// ### SpVkQueues struct
+/// *A convenience struct containing different "families" of SpVkQueue struct*
+/// <pre>
+/// - Members
+///     graphics:       SpVkQueue       <i>// SpVkQueue for graphics family of instructrions.</i>
+/// </pre>
 pub struct SpVkQueues
 {
-    pub graphics: SpVkQueue,
+    pub graphics:   SpVkQueue,
 }
 
 impl SpVkQueues
 {
+    /// ### SpVkQueues::new() -> SpVkQueues
+    /// *Returns a new instance of SpVkQueues.*<br><br>
+    /// *Each SpVkQueue family is not yet populated with usable values.*<br>
+    /// *Must call **fn queury_indices()** and **fn queury_queues()***
+    /// <pre>
+    /// - Return 
+    ///     SpVkQueues
+    /// </pre>
     pub fn new() -> Self
     { 
         Self
@@ -46,27 +69,38 @@ impl SpVkQueues
         } 
     } 
 
-    pub fn query_indices(&self, instance: &ash::Instance, physical_device: &vk::PhysicalDevice) -> Self
+    /// ### fn SpVkQueues::queury_indices( &mut self, ... )
+    /// *Queries VkQueueFamilyIndices from the physical device.*<br>
+    /// *Populates the SpVkQueue families if found.*
+    /// <pre>
+    /// - Params
+    ///     <b>&mut self</b>
+    ///     instance:           &ash::instance
+    ///     physical_device:    &vk::PhysicalDevice    
+    /// </pre>
+    pub fn query_indices(&mut self, instance: &ash::Instance, physical_device: &vk::PhysicalDevice)
     {
         let device_queue_families = unsafe { instance.get_physical_device_queue_family_properties(*physical_device) };
 
-        let mut graphics = SpVkQueue::new();
+        // let mut graphics = SpVkQueue::new();
         let mut index: u32 = 0;
         for queue_family in device_queue_families.iter()
         {
             if queue_family.queue_flags.contains(vk::QueueFlags::GRAPHICS)
             {
-                graphics.index = Some(index);
+                self.graphics.index = Some(index);
             }
             index += 1;
         }
-
-        Self 
-        { 
-            graphics,
-        }
     }
 
+    /// ### fn queury_queues( &mut self, ... )
+    /// *Sets the VkQueues from the loghical device (ash::Device/VkDevice) for the found VkQueueFamilyIndices*
+    /// <pre>
+    /// - Params
+    ///     <b>&mut self</b>
+    ///     device:     &ash::Device
+    /// </pre>
     pub fn query_queues(&mut self, device: &ash::Device)
     {
         if self.graphics.index.is_some()
@@ -75,6 +109,14 @@ impl SpVkQueues
         }
     }
 
+    /// ### fn get_index_list( &self ) -> Vec\<u32\>
+    /// *Returns a list (Vec\<u32\>) of the found VkQueueFamilyIndices*
+    /// <pre>
+    /// - Params
+    ///     <b>&self</b>
+    /// - Return
+    ///     Vec&lt;u32&gt;
+    /// </pre>
     pub fn get_index_list(&self) -> Vec<u32>
     {
         let mut index_list: Vec<u32> = vec![];
@@ -87,18 +129,44 @@ impl SpVkQueues
 
 }
 
+/// ### SpVkSwapchain struct
+/// *Contains handle to vk::Swapchain and all related data.*</br>
+/// *SpVkSwapchain is responsible for the images rendered to screen.*
+/// <pre>
+/// - Members
+///     loader:     khr::Swapchain
+///     handle:     vk::SwapchainKHR
+///     images:     Vec&lt;vk::Image&gt;
+///     views:      Vec&lt;vk::ImageView&gt;
+///     format:     vk::Format
+///     extent:     vk::Extent2D
+/// </pre>
 pub struct SpVkSwapchain
 {
-    pub loader: ash::extensions::khr::Swapchain,
-    pub handle: vk::SwapchainKHR,
-    pub images: Vec<vk::Image>,
-    pub views: Vec<vk::ImageView>,
-    pub format: vk::Format,
-    pub extent: vk::Extent2D
+    pub loader:     ash::extensions::khr::Swapchain,
+    pub handle:     vk::SwapchainKHR,
+    pub images:     Vec<vk::Image>,
+    pub views:      Vec<vk::ImageView>,
+    pub format:     vk::Format,
+    pub extent:     vk::Extent2D
 }
 
 impl SpVkSwapchain
 {
+
+    /// ### fn SpVkSWapchain::new( ... ) -> SpVkSwapchain
+    /// *Creates an instance of SpVkSwapchain.*
+    /// <pre>
+    /// - Param
+    ///     loader:             &SpVkLoader
+    ///     device:             &ash::Device
+    ///     physical_device:    &vk::PhysicalDevice
+    ///     queue_indices:      &Vec&lt;u32&gt;
+    ///     width:              u32
+    ///     height:             u32
+    /// - Return
+    ///     SpVkSwapchain
+    /// </pre>
     pub fn new(loader: &SpVkLoader, device: &ash::Device, physical_device: &vk::PhysicalDevice, queue_indices: &Vec<u32>,  width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanSwapchain struct...");
@@ -111,7 +179,7 @@ impl SpVkSwapchain
         let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, details.capabilities, &format, &present_mode, &extent);
         let images = unsafe 
         {
-            loader.get_swapchain_images(handle).map_err( |e| { log_err!(e); } ).unwrap()    
+            vk_check!( loader.get_swapchain_images(handle) ).unwrap()
         };
 
         let mut views: Vec<vk::ImageView> = vec![];
@@ -134,6 +202,13 @@ impl SpVkSwapchain
         }
     }
 
+    /// ### fn SpVkSwapchain::destroy( &self, ... )
+    /// *Destroys an instance of SpVkSwapchain.*
+    /// <pre>
+    /// - Param
+    ///     <b>&self</b>
+    ///     device:     &ash::Device
+    /// </pre>
     pub fn destroy(&self, device: &ash::Device)
     {
         unsafe
@@ -147,22 +222,48 @@ impl SpVkSwapchain
     }
 }
 
+/// ### SpVkCommands struct
+/// *Contains vk::CommandPool and vk::CommandBuffer(s).*</br>
+/// *SpVkCommands are the allocated commands set to execute on the gpu.*
+/// <pre>
+/// - Members
+///     pool:       vk::CommandPool
+///     buffers:    Vec&lt;vk::CommandBuffer&gt;
+/// </pre>
 pub struct  SpVkCommands
 {
-    pub pool: vk::CommandPool,
-    pub buffers: Vec<vk::CommandBuffer>
+    pub pool:               vk::CommandPool,
+    pub buffers:            Vec<vk::CommandBuffer>,
+    current_frame_index:    usize
 }
 
 impl SpVkCommands
 {
+    /// ### fn SpVkCommands::new( ... ) -> SpVkCommands
+    /// *Creates an instance of SpVkCommands.*
+    /// <pre>
+    /// - Params
+    ///     device:                 &ash::Device
+    ///     queue_family_index:     u32
+    ///     buffer_count:           u32
+    /// - Return
+    ///     SpVkCommands
+    /// </pre>
     pub fn new(device: &ash::Device, queue_family_index: u32, buffer_count: u32) -> Self
     {
         let pool = create_vk_command_pool(device, queue_family_index);
         let buffers = allocate_vk_command_buffers(device, &pool, buffer_count);
 
-        Self{ pool, buffers }
+        Self{ pool, buffers, current_frame_index: 0 }
     }
 
+    /// ### fn SpVkCommands::destroy( &self, ... )
+    /// *Destroys the instance of SpVkCommands.*
+    /// <pre>
+    /// - Params
+    ///     <b>&self</b>
+    ///     device:     &ash::Device
+    /// </pre>
     pub fn destroy(&self, device: &ash::Device)
     {
         unsafe
@@ -170,28 +271,155 @@ impl SpVkCommands
             device.destroy_command_pool(self.pool, None);
         }
     }
+
+    pub fn reset_pool(&self, device: &ash::Device)
+    {
+        unsafe{
+            vk_check!(device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty()));
+        }
+    }
+
+    pub fn reset_buffer(&self, device: &ash::Device)
+    {
+        unsafe{
+            vk_check!(device.reset_command_buffer(self.buffers[self.current_frame_index], vk::CommandBufferResetFlags::empty())).unwrap();
+        }
+    }
+
+    pub fn set_next_index(&mut self, next_index: usize)
+    {
+        self.current_frame_index = next_index;
+    }
+
+    pub fn get_current_buffer(&self) -> &vk::CommandBuffer
+    {
+        &self.buffers[self.current_frame_index]
+    }
 }
 
+pub struct SpVkFrameSync
+{
+    pub wait_semaphores:    Vec<vk::Semaphore>,
+    pub render_semaphores:  Vec<vk::Semaphore>,
+    pub in_flight_fences:   Vec<vk::Fence>,
+    frames_in_flight:       usize,
+    current_frame_index:    usize,
+}
+
+impl SpVkFrameSync
+{
+    pub fn new(device: &ash::Device, frames_in_flight: usize) -> Self
+    {
+        let mut wait_semaphores: Vec<vk::Semaphore> = Vec::new();
+        let mut render_semaphores: Vec<vk::Semaphore> = Vec::new();
+        let mut in_flight_fences: Vec<vk::Fence> = Vec::new();
+
+        for _i in 0..frames_in_flight
+        {
+            wait_semaphores.push(create_vk_semaphore(device));
+            render_semaphores.push(create_vk_semaphore(device));
+            in_flight_fences.push(create_vk_fence(device, true));
+        }
+
+        Self
+        {
+            wait_semaphores,
+            render_semaphores,
+            in_flight_fences,
+            frames_in_flight,
+            current_frame_index: 0
+        }
+    }
+
+    pub fn destroy(&mut self, device: &ash::Device)
+    {
+        for i in 0..self.frames_in_flight
+        {
+            unsafe
+            {
+                device.destroy_semaphore(self.wait_semaphores[i], None);
+                device.destroy_semaphore(self.render_semaphores[i], None);
+                device.destroy_fence(self.in_flight_fences[i], None);
+            }
+        }
+        self.wait_semaphores.clear();
+        self.render_semaphores.clear();
+        self.in_flight_fences.clear();
+    }
+
+    pub fn get_num_frames_in_flight(&self) -> usize
+    {
+        self.frames_in_flight
+    }
+
+    pub fn get_current_frame_index(&self) -> usize
+    {
+        self.current_frame_index
+    }
+
+    pub fn set_next_frame_index(&mut self)
+    {
+        self.current_frame_index = (self.current_frame_index + 1) % self.frames_in_flight;
+    }
+
+    pub fn get_current_wait_semaphore(&self) -> &vk::Semaphore
+    {
+        &self.wait_semaphores[self.current_frame_index]
+    }
+
+    pub fn get_current_render_semaphore(&self) -> &vk::Semaphore
+    {
+        &self.render_semaphores[self.current_frame_index]
+    }
+
+    pub fn get_current_in_flight_fence(&self) -> &vk::Fence
+    {
+        &self.in_flight_fences[self.current_frame_index]
+    }
+}
+
+/// ### SpVkContext struct
+/// *Vulkan rendering Context.*<br>
+/// <pre>
+/// - Members
+///     device:             ash::Device
+///     physical_device:    vk::PhysicalDevice
+///     allocator:          gpu_allocator::vulkan::Allocator
+///     queues:             SpVkQueues
+///     swapchain:          SpVkSwapChain
+///     draw_cmds:          SpVkCommands
+///     render_semaphore:   vk::Semaphore
+///     wait_semaphore:     vk::Semaphore
+/// </pre>
 pub struct SpVkContext
 {
-    pub device: Device,
-    pub physical_device: vk::PhysicalDevice,
-    pub allocator: Allocator,
-    pub queues: SpVkQueues,
-    pub swapchain: SpVkSwapchain,
-    pub draw_cmds: SpVkCommands,
-    pub render_semaphore: vk::Semaphore,
-    pub wait_semaphore: vk::Semaphore,
+    pub device:             Device,
+    pub physical_device:    vk::PhysicalDevice,
+    pub allocator:          Option<Allocator>,
+    pub queues:             SpVkQueues,
+    pub swapchain:          SpVkSwapchain,
+    pub draw_cmds:          SpVkCommands,
+    // pub render_semaphore:   vk::Semaphore,
+    // pub wait_semaphore:     vk::Semaphore,
+    pub frame_sync:         SpVkFrameSync,
 }
 
 impl SpVkContext
 {
+    /// ### fn SpVkContext::new( ... ) -> SpVkContext
+    /// *Creates an instance of SpVkContext.*
+    /// <pre>
+    /// - Params
+    ///     loader:     &SpVkLoader
+    ///     width:      u32
+    ///     height:     u32
+    /// </pre>
     pub fn new(loader: &SpVkLoader, width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanContext...");
 
         let physical_device = find_suitable_vk_physical_device(&loader.instance, &loader.surface);
-        
+
         let mut queues = SpVkQueues::new();
         queues.query_indices(&loader.instance, &physical_device);
 
@@ -203,41 +431,77 @@ impl SpVkContext
 
         let swapchain = SpVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
 
-        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), swapchain.images.len() as u32);
+        let frame_sync = SpVkFrameSync::new(&device, 2);
         
-        let render_semaphore = create_vk_semaphore(&device);
-        let wait_semaphore = create_vk_semaphore(&device);
+        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), frame_sync.get_num_frames_in_flight() as u32);
 
         log_info!("VulkanContext created");
         Self
         {
             device,
             physical_device,
-            allocator,
+            allocator: Some(allocator),
             queues,
             swapchain,
             draw_cmds,
-            render_semaphore,
-            wait_semaphore
+            frame_sync
         }
     }
 
-
-    pub fn destroy(&self)
+    /// ### fn SpVkContext::destroy( &self )
+    /// *Destroys the instance of SpVkContext.*
+    /// <pre>
+    /// - Params
+    ///     <b>&self</b>
+    /// </pre>
+    pub fn destroy(&mut self)
     {
-        // drop(self.allocator);
-
-        self.swapchain.destroy(&self.device);
+        self.clean_swapchain();
+        self.frame_sync.destroy(&self.device);
         self.draw_cmds.destroy(&self.device);
+        drop(self.allocator.take().unwrap());
         unsafe
         {
             self.device.destroy_device(None);
         }
     }
 
+    pub fn clean_swapchain(&mut self)
+    {
+        self.swapchain.destroy(&self.device);
+    }
+
+    pub fn recreate_swapchain(&mut self, loader: &SpVkLoader, width: u32, height: u32)
+    {
+        self.swapchain = SpVkSwapchain::new(loader, &self.device, &self.physical_device, &self.queues.get_index_list(), width, height);
+    }
+
+    pub fn reset_draw_cmd_pool(&self)
+    {
+        self.draw_cmds.reset_pool(&self.device);
+    }
+
+    pub fn reset_current_draw_cmd_buffer(&self)
+    {
+        self.draw_cmds.reset_buffer(&self.device);
+    }
+
+    pub fn set_next_frame_index(&mut self) 
+    {
+        self.frame_sync.set_next_frame_index();
+        self.draw_cmds.set_next_index(self.frame_sync.get_current_frame_index());
+    }
+
 }
 
-
+/// ### fn sp_begin_single_time_vk_command_buffer( ... ) -> vk::CommandBuffer
+/// *Allocates and sets up a vk::CommandBuffer for temporary use, then returns it.*
+/// <pre>
+/// - Params
+///     vk_ctx:     &SpVkContext
+/// - Return
+///     vk::CommandBuffer
+/// </pre>
 pub fn sp_begin_single_time_vk_command_buffer(vk_ctx: &SpVkContext) -> vk::CommandBuffer
 {
     let alloc_info = vk::CommandBufferAllocateInfo
@@ -262,6 +526,13 @@ pub fn sp_begin_single_time_vk_command_buffer(vk_ctx: &SpVkContext) -> vk::Comma
     cmd_buffer
 }
 
+/// ### fn sp_end_single_time_vk_command_buffer( ... )
+/// *Submits a temporary vk::CommandBuffer to the gpu for execution, then frees it from memory.*
+/// <pre>
+/// - Params
+///     vk_ctx:         &SpVkContext
+///     cmd_buffer:     &vk::CommandBuffer
+/// </pre>
 pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk::CommandBuffer)
 {
     unsafe { vk_check!(vk_ctx.device.end_command_buffer(cmd_buffer)).unwrap(); }
@@ -282,7 +553,7 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
     unsafe 
     {
         vk_check!(vk_ctx.device.queue_submit(vk_ctx.queues.graphics.handle, &submit_info, vk::Fence::null())).unwrap();
-    
+
         vk_check!(vk_ctx.device.queue_wait_idle(vk_ctx.queues.graphics.handle)).unwrap();
 
         vk_ctx.device.free_command_buffers(vk_ctx.draw_cmds.pool, &[cmd_buffer]);
@@ -290,188 +561,88 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
 }
 
 
-pub fn sp_create_graphics_pipeline(
+pub fn sp_create_vk_color_depth_framebuffers(
         vk_ctx: &SpVkContext, 
         renderpass: &SpVkRenderPass, 
-        layout: &vk::PipelineLayout, 
-        shader_files: &Vec<&str>,
-        topology: vk::PrimitiveTopology,
-        // b_dynamic_scissor: bool,
-        b_use_blending: bool,
-        custom_size: Option<vk::Extent2D>,
-        num_patch_control_points: u32
-    ) -> vk::Pipeline
+        depth_view: &vk::ImageView
+    ) -> Vec<vk::Framebuffer>
 {
-    let mut shader_modules: Vec<SpVkShaderModule> = Vec::new();
-    let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::new();
+    let mut framebuffers: Vec<vk::Framebuffer> = Vec::new();
 
-    for shader_file in shader_files.iter()
+    for image_view in vk_ctx.swapchain.views.iter()
     {
-        let file_path = std::path::Path::new(shader_file);
-        let shader_module = sp_create_shader_module(&vk_ctx.device, &file_path);
-        
-        let stage = get_vk_shader_stage_from_filename(&file_path);
+        let attachments = [
+            *image_view,
+            *depth_view
+        ];
 
-        let shader_stage_ci = sp_get_vk_shader_create_info(&shader_module, stage, "main");
+        let create_info = vk::FramebufferCreateInfo
+        {
+            s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::FramebufferCreateFlags::empty(),
+            render_pass: renderpass.handle,
+            attachment_count: attachments.len() as u32,
+            p_attachments: attachments.as_ptr(),
+            width: vk_ctx.swapchain.extent.width,
+            height: vk_ctx.swapchain.extent.height,
+            layers: 1
+        };
 
-        shader_modules.push(shader_module);
-        shader_stages.push(shader_stage_ci);
+        let framebuffer = unsafe {
+            vk_check!(vk_ctx.device.create_framebuffer(&create_info, None)).unwrap()
+        };
+
+        framebuffers.push(framebuffer);
     }
 
-    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        ..Default::default()
-    };
+    framebuffers
+}
 
-    let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        topology: topology,
-        primitive_restart_enable: vk::FALSE,
-        ..Default::default()
-    };
 
-    let size: vk::Extent2D;
-    if custom_size.is_some()
-    {
-        size = custom_size.clone().unwrap();
-    } else {
-        size = vk_ctx.swapchain.extent.clone();
-    }
-    let viewport = vk::Viewport
-    {
-        x: 0.0,
-        y: 0.0,
-        width: size.width as f32,
-        height: size.height as f32,
-        min_depth: 0.0,
-        max_depth: 1.0
-    };
+pub fn sp_create_vk_color_only_framebuffers(
+        vk_ctx: &SpVkContext, 
+        renderpass: &SpVkRenderPass
+    ) -> Vec<vk::Framebuffer>
+{
+    let mut framebuffers: Vec<vk::Framebuffer> = Vec::new();
 
-    let scissor = vk::Rect2D
+    for image_view in vk_ctx.swapchain.views.iter()
     {
-        offset: vk::Offset2D{ x: 0, y: 0 },
-        extent: size
-    };
+        let attachments = [
+            *image_view,
+        ];
 
-    let viewport_state_info = vk::PipelineViewportStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        viewport_count: 1,
-        p_viewports: &viewport,
-        scissor_count: 1,
-        p_scissors: &scissor,
-        ..Default::default()
-    };
+        let create_info = vk::FramebufferCreateInfo
+        {
+            s_type: vk::StructureType::FRAMEBUFFER_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::FramebufferCreateFlags::empty(),
+            render_pass: renderpass.handle,
+            attachment_count: attachments.len() as u32,
+            p_attachments: attachments.as_ptr(),
+            width: vk_ctx.swapchain.extent.width,
+            height: vk_ctx.swapchain.extent.height,
+            layers: 1
+        };
 
-    let rasterizer_state_info = vk::PipelineRasterizationStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        polygon_mode: vk::PolygonMode::FILL,
-        cull_mode: vk::CullModeFlags::BACK,
-        front_face: vk::FrontFace::CLOCKWISE,
-        line_width: 1.0,
-        ..Default::default()
-    };
+        let framebuffer = unsafe {
+            vk_check!(vk_ctx.device.create_framebuffer(&create_info, None)).unwrap()
+        };
 
-    let multi_sample_state_info = vk::PipelineMultisampleStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        rasterization_samples: vk::SampleCountFlags::TYPE_1,
-        sample_shading_enable: vk::FALSE,
-        min_sample_shading: 1.0,
-        ..Default::default()
-    };
-
-    let color_blend_attachment_state = vk::PipelineColorBlendAttachmentState
-    {
-        blend_enable: vk::TRUE,
-        src_color_blend_factor: vk::BlendFactor::SRC_ALPHA,
-        dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_SRC_ALPHA,
-        color_blend_op: vk::BlendOp::ADD,
-        src_alpha_blend_factor: if b_use_blending { vk::BlendFactor::ONE_MINUS_SRC_ALPHA } else { vk::BlendFactor::ONE },
-        dst_alpha_blend_factor: vk::BlendFactor::ZERO,
-        alpha_blend_op: vk::BlendOp::ADD,
-        color_write_mask:
-            vk::ColorComponentFlags::R |
-            vk::ColorComponentFlags::G |
-            vk::ColorComponentFlags::B |
-            vk::ColorComponentFlags::A,
-    };
-
-    let color_blend_state_info = vk::PipelineColorBlendStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        logic_op_enable: vk::FALSE,
-        logic_op: vk::LogicOp::COPY,
-        attachment_count: 1,
-        p_attachments: &color_blend_attachment_state,
-        blend_constants: [ 0.0, 0.0, 0.0, 0.0 ],
-        ..Default::default()
-    };
-
-    let depth_stencil_state_info = vk::PipelineDepthStencilStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        depth_test_enable: if renderpass.info.b_use_depth { vk::TRUE } else { vk::FALSE },
-        depth_write_enable: if renderpass.info.b_use_depth { vk::TRUE } else { vk::FALSE },
-        depth_compare_op: vk::CompareOp::LESS,
-        depth_bounds_test_enable: vk::FALSE,
-        min_depth_bounds: 0.0,
-        max_depth_bounds: 1.0,
-        ..Default::default()
-    };
-
-    let dynamic_states = vec![ vk::DynamicState::SCISSOR ];
-    let dynamic_state_info = vk::PipelineDynamicStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        p_next: std::ptr::null(),
-        flags: vk::PipelineDynamicStateCreateFlags::empty(),
-        dynamic_state_count: dynamic_states.len() as u32,
-        p_dynamic_states: dynamic_states.as_ptr()
-    };
-
-    let tessellation_state_info = vk::PipelineTessellationStateCreateInfo
-    {
-        s_type: vk::StructureType::PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-        p_next: std::ptr::null(),
-        flags: vk::PipelineTessellationStateCreateFlags::empty(),
-        patch_control_points: num_patch_control_points
-    };
-
-    let create_info = vk::GraphicsPipelineCreateInfo
-    {
-        s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
-        stage_count: shader_stages.len() as u32,
-        p_stages: shader_stages.as_ptr(),
-        p_vertex_input_state: &vertex_input_state,
-        p_input_assembly_state: &input_assembly_state,
-        p_tessellation_state: &tessellation_state_info,
-        p_viewport_state: &viewport_state_info,
-        p_rasterization_state: &rasterizer_state_info,
-        p_multisample_state: &multi_sample_state_info,
-        p_depth_stencil_state: &depth_stencil_state_info,
-        p_color_blend_state: &color_blend_state_info,
-        p_dynamic_state: &dynamic_state_info,
-        layout: *layout,
-        render_pass: renderpass.handle,
-        subpass: 0,
-        base_pipeline_handle: vk::Pipeline::null(),
-        base_pipeline_index: -1,
-        ..Default::default()
-    };
-
-    let pipeline = unsafe 
-    {
-        vk_ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None).map_err(|e| { log_err!(e.1); } ).unwrap()[0]
-    };
-
-    for module in shader_modules.iter_mut()
-    {
-        sp_destroy_shader_module(&vk_ctx.device,  module);
+        framebuffers.push(framebuffer);
     }
 
-    pipeline
+    framebuffers
+}
+
+pub fn sp_destroy_vk_framebuffers(device: &ash::Device, framebuffers: &mut Vec<vk::Framebuffer>)
+{
+    unsafe{
+        for framebuffer in framebuffers.iter()
+        {
+            device.destroy_framebuffer(*framebuffer, None);
+        }
+    }
+    framebuffers.clear();
 }

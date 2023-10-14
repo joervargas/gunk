@@ -8,9 +8,9 @@ fn main() {
         title: String::from("Splunk Editor"),
         width: 1000,
         height: 800,
-        is_fullscreen: false,
-        is_resizable: true,
-        has_border: true
+        b_fullscreen: false,
+        b_resizable: true,
+        b_border: true
     };
     
     let (mut app, evloop) = application::Application::new(app_config);

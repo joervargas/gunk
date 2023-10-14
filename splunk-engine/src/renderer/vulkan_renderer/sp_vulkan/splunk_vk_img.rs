@@ -20,13 +20,26 @@ use super::splunk_vk_context::{
     sp_end_single_time_vk_command_buffer
 };
 
-use std::ffi::c_void;
-
+/// ### fn create_vk_image( ... ) -> (vk::Image, vulkan::Allocation)
+/// *Creates a vk::Image and an Allocation for memory)
+/// <pre>
+/// - Param
+///     device:
+///     width:
+///     height:
+///     format:
+///     tiling:
+///     usage:
+///     create_flags:
+///     mip_levels:
+/// - Return
+///     (vk::Image, vulkan::Allocation)
+/// </pre>
 pub fn create_vk_image(
         device: &ash::Device, allocator: &mut Allocator, label: &str, 
         width: u32, height: u32, 
         format: vk::Format, tiling: vk::ImageTiling, 
-        usage: vk::ImageUsageFlags, create_flags: vk::ImageCreateFlags, 
+        usage: vk::ImageUsageFlags, create_flags: vk::ImageCreateFlags,
         mip_levels: u32
     ) -> (vk::Image, Allocation)
 {
@@ -49,35 +62,37 @@ pub fn create_vk_image(
         initial_layout: vk::ImageLayout::UNDEFINED
     };
     let img = unsafe { vk_check!( device.create_image(&create_info, None) ).unwrap() };
-    
-    let mem_requirements = unsafe{ device.get_image_memory_requirements(img) };
-    
-    // let alloc_info = vk::MemoryAllocateInfo
-    // {
-    //     s_type: vk::StructureType::MEMORY_ALLOCATE_INFO,
-    //     p_next: std::ptr::null(),
-    //     allocation_size: mem_requirements.size,
-    //     ..Default::default()
-    // };
 
-    // let memory = unsafe{
-    //     let mem = vk_check!(device.allocate_memory(&alloc_info, None)).unwrap();
-    //     vk_check!(device.bind_image_memory(img, mem, 0)).unwrap();
-    //     mem
-    // };
+    let mem_requirements = unsafe{ device.get_image_memory_requirements(img) };
+
     let alloc_info = AllocationCreateDesc
     {
         name: label,
         requirements: mem_requirements,
-        location: MemoryLocation::CpuToGpu,
+        location: MemoryLocation::GpuOnly,
         linear: true,
         allocation_scheme: AllocationScheme::GpuAllocatorManaged
     };
-    let allocation = allocator.allocate(&alloc_info).map_err( |e| { log_err!(e); } ).unwrap();
-
+    let allocation = vk_check!(allocator.allocate(&alloc_info)).unwrap();
+    unsafe { vk_check!(device.bind_image_memory(img, allocation.memory(), allocation.offset())); }
+    
     (img, allocation)
 }
 
+/// ### fn create_vk_image_view( ... ) -> vk::ImageView
+/// *Creates a vk::ImageView*
+/// <pre>
+/// - Params
+///     device:             &ash::Device
+///     image:              &vk::Image
+///     format:             &vk::Format
+///     aspect_flags:       vk::ImageAspectFlags
+///     view_type:          vk::ImageViewType
+///     layer_count:        u32
+///     mip_levels:         u32
+/// - Return
+///     vk::ImageView
+/// </pre>
 pub fn create_vk_image_view(
         device: &ash::Device, image: &vk::Image, 
         format: &vk::Format, aspect_flags: vk::ImageAspectFlags, 
@@ -106,6 +121,14 @@ pub fn create_vk_image_view(
     unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
 }
 
+/// ### fn create_vk_sampler( ... ) -> vk::Sampler
+/// *Creates a vk::Sampler*
+/// <pre>
+/// - Params
+///     device:     &ash::Device
+/// - Return
+///     vk::Sampler
+/// </pre>
 pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
 {
     let create_info = vk::SamplerCreateInfo
@@ -120,7 +143,7 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
         address_mode_v: vk::SamplerAddressMode::REPEAT,
         address_mode_w: vk::SamplerAddressMode::REPEAT,
         mip_lod_bias: 0.0,
-        anisotropy_enable: vk::TRUE,
+        anisotropy_enable: vk::FALSE,
         max_anisotropy: 1.0,
         compare_enable: vk::FALSE,
         compare_op: vk::CompareOp::ALWAYS,
@@ -133,6 +156,19 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
     unsafe{ vk_check!(device.create_sampler(&create_info, None)).unwrap() }
 }
 
+/// ### fn find_supported_vk_format( ... ) -> vk::Format
+/// *Loops through supplied candidate formats. <br>
+/// Determines best one based on Tiling and and format features.*
+/// <pre>
+/// - Params
+///     instance:           &ash::Instance
+///     phys_device:        &vk::PhysicalDevice
+///     candidates:         &Vec&lt;vk::Format&gt;          <i>// Candidate formats to loop through.</i>
+///     tiling:             vk::ImageTiling
+///     features:           vk::FormatFeatureFlags
+/// - Return
+///     vk::Format
+/// </pre>
 pub fn find_supported_vk_format(instance: &ash::Instance, phys_device: &vk::PhysicalDevice, candidates: &Vec<vk::Format>, tiling: vk::ImageTiling, features: vk::FormatFeatureFlags) -> vk::Format
 {
     for format in candidates.iter()
@@ -153,12 +189,38 @@ pub fn find_supported_vk_format(instance: &ash::Instance, phys_device: &vk::Phys
     panic!("Fn 'find_supported_vk_format()' Failed to find supported format!");
 }
 
+/// ### fn has_vk_stencil_component( ... ) -> bool
+/// *Determines whether the given vk::Format has stencil capabilities.*
+/// <pre>
+/// - Params
+///     format:     vk::Format
+/// - Return
+///     bool
+/// </pre>
 pub fn has_vk_stencil_component(format: vk::Format) -> bool
 {
     format == vk::Format::D32_SFLOAT_S8_UINT || format == vk::Format::D24_UNORM_S8_UINT
 }
 
-pub fn transition_vk_image_layout( device: &ash::Device, cmd_buffer: &vk::CommandBuffer, img: vk::Image, format: vk::Format, old_layout: vk::ImageLayout, new_layout: vk::ImageLayout, layer_count: u32, mip_levels: u32)
+/// ### transition_vk_image_layout( ... )
+/// *Transitions a vk::Image to a new layout*
+/// <pre>
+/// - Params
+///     device:         &ash::Device
+///     cmd_buffer:     &vk::CommandBuffer
+///     img:            vk::Image
+///     format:         vk::Format
+///     old_layout:     vk::ImageLayout         <i>// Current image layout.</i>
+///     new_layout:     vk::ImageLayout         <i>// Desired image layout.</i>
+///     layer_count:    u32
+///     mip_levels:     u32
+/// </pre>
+pub fn transition_vk_image_layout( 
+        device: &ash::Device, cmd_buffer: &vk::CommandBuffer, 
+        img: vk::Image, format: vk::Format, 
+        old_layout: vk::ImageLayout, new_layout: vk::ImageLayout, 
+        layer_count: u32, mip_levels: u32
+    )
 {
     let mut barrier = vk::ImageMemoryBarrier
     {
@@ -300,7 +362,7 @@ pub fn transition_vk_image_layout( device: &ash::Device, cmd_buffer: &vk::Comman
         src_stage = vk::PipelineStageFlags::NONE;
         dst_stage = vk::PipelineStageFlags::NONE;
     }
-    
+
     unsafe {
         device.cmd_pipeline_barrier(
             *cmd_buffer, 
@@ -313,6 +375,18 @@ pub fn transition_vk_image_layout( device: &ash::Device, cmd_buffer: &vk::Comman
     }
 }
 
+/// ### fn copy_vk_buffer_to_img( ... )
+/// *Copies vk::Buffer contents to a vk::Image*
+/// <pre>
+/// - Params
+///     device:         &ash::Device
+///     cmd_buffer:     &vk::CommandBuffer
+///     buffer:         &vk::Buffer
+///     img:            &vk::Image
+///     width:          u32
+///     height:         u32
+///     layer_count:    u32
+/// </pre>
 pub fn copy_vk_buffer_to_img(
         device: &ash::Device, cmd_buffer: &vk::CommandBuffer, 
         buffer: &vk::Buffer, img: &vk::Image, 
@@ -344,7 +418,16 @@ pub fn copy_vk_buffer_to_img(
     }
 }
 
-pub fn find_vk_format_depth_img(instance:&ash::Instance, phys_device: &vk::PhysicalDevice) -> vk::Format
+/// ### fn find_vk_format_depth_img( ... ) -> vk::Format
+/// *Finds a suitable format for a depth image texture*
+/// <pre>
+/// - Params
+///     instance:       &ash::Instance
+///     phys_device:    &vk::PhysicalDevice
+/// - Return
+///     vk::Format      <i>// A format suitable for a depth image texture.*
+/// </pre>
+pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::PhysicalDevice) -> vk::Format
 {
     find_supported_vk_format(
         instance, phys_device, 
@@ -354,13 +437,31 @@ pub fn find_vk_format_depth_img(instance:&ash::Instance, phys_device: &vk::Physi
     )
 }
 
+/// ### struct SpVkImage
+/// *A convenience struct. has the image, memory allocation, and view*
+/// <pre>
+/// - Members
+///     handle:     vk::Image
+///     alloc:      vulkan::Allocation
+///     view:       vk::ImageView
+/// </pre>
 pub struct SpVkImage
 {
-    pub handle: vk::Image,
-    pub alloc: Allocation,
-    pub view: vk::ImageView,
+    pub handle:     vk::Image,
+    pub alloc:      Allocation,
+    pub view:       vk::ImageView,
+    pub size:       vk::DeviceSize,
 }
 
+/// ### sp_create_vk_image( ... ) -> SpVkImage
+/// *Creates a generic SpVkImage from a given file_name.*
+/// <pre>
+/// - Params
+///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     file_name:      &str
+/// - Return
+///     SpVkImage
+/// </pre>
 pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImage
 {
     let img = image::open(std::path::Path::new(file_name)).map_err( |e| { log_err!(e); } ).unwrap();
@@ -372,22 +473,26 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
 
     let label = String::from(format!("staging_allocation: {}", file_name));
     (staging_buffer, staging_allocation) = create_vk_buffer(
-        &vk_ctx.device, &mut vk_ctx.allocator, label.as_str(), 
-        img_size, vk::BufferUsageFlags::TRANSFER_SRC);
+        &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), label.as_str(), 
+        img_size, 
+        vk::BufferUsageFlags::TRANSFER_SRC, 
+        MemoryLocation::CpuToGpu,
+    );
 
+    // map_vk_allocation_data(&staging_allocation, pixels.as_slice(), pixels.len());
     unsafe
     {
-        let p_data = vk_ctx.device.map_memory(staging_allocation.memory(), staging_allocation.offset(), img_size, vk::MemoryMapFlags::empty()).map_err( |e| { log_err!(e); } ).unwrap();
-            p_data.copy_from_nonoverlapping(pixels.as_ptr() as *const c_void, pixels.len());    
-        vk_ctx.device.unmap_memory(staging_allocation.memory());
+        let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
+            mapped_ptr.copy_from_nonoverlapping(pixels.as_slice().as_ptr() as *const u8, pixels.len());
+        // vk_ctx.device.unmap_memory(staging_allocation.memory());
     }
 
     let (handle, alloc) = create_vk_image(
-        &vk_ctx.device, &mut vk_ctx.allocator, file_name, 
+        &vk_ctx.device, vk_ctx.allocator.as_mut().unwrap(), file_name, 
         img.width(), img.height(), vk::Format::R8G8B8A8_UNORM, 
         vk::ImageTiling::OPTIMAL, vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED, 
         vk::ImageCreateFlags::empty(), 1);
-    
+
     let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
 
         transition_vk_image_layout(
@@ -401,7 +506,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
             &staging_buffer, &handle, 
             img.width(), img.height(), 
             1);
-        
+
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
             handle, vk::Format::R8G8B8A8_UNORM, 
@@ -413,7 +518,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
     unsafe
     {
         vk_ctx.device.destroy_buffer(staging_buffer, None);
-        vk_ctx.allocator.free(staging_allocation).map_err(|e| { log_err!(e); }).unwrap();
+        vk_check!( vk_ctx.allocator.as_mut().unwrap().free(staging_allocation) ).unwrap()
     }
 
     let view = create_vk_image_view(
@@ -422,14 +527,23 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
         vk::ImageViewType::TYPE_2D, 
         1, 1);
 
-    SpVkImage { handle, alloc, view }
+    SpVkImage { handle, alloc, view, size: img_size }
 }
 
+/// ### fn sp_create_vk_depth_img( ... ) -> SpVkImage
+/// *Creates an SpVkImage used for depth textures.*
+/// <pre>
+/// - Params
+///     instance:       &ash::Instance
+///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     width:          u32
+///     height:         u32
+/// </pre>
 pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext, width: u32, height: u32) -> SpVkImage
 {
     let format = find_vk_format_depth_img(instance, &vk_ctx.physical_device);
     let (img, alloc) = create_vk_image(
-        &vk_ctx.device, &mut vk_ctx.allocator, "depth image",
+        &vk_ctx.device, &mut vk_ctx.allocator.as_mut().unwrap(), "depth image",
         width, height, 
         format, vk::ImageTiling::OPTIMAL, 
         vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT, 
@@ -450,16 +564,25 @@ pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext
             1, 1);
     sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
-    SpVkImage { handle: img, alloc, view }
+    let size : vk::DeviceSize = (std::mem::size_of::<u8>() as u32 * width * height) as vk::DeviceSize;
+
+    SpVkImage { handle: img, alloc, view, size }
 }
 
+/// ### fn sp_destroy_vk_img( ... )
+/// *Destroys the given instance of SpVkImage*
+/// <pre>
+/// - Param
+///     vk_ctx:     &mut SpVkContext
+///     img:        SpVkImage           <i>// SpVkImage to be destroyed.</i>
+/// </pre>
 pub fn sp_destroy_vk_img(vk_ctx: &mut SpVkContext, img: SpVkImage)
 {
     unsafe
     {
         vk_ctx.device.destroy_image(img.handle, None);
         // device.free_memory(img.memory, None);
-        vk_ctx.allocator.free(img.alloc).map_err(|e| { log_err!(e); } ).unwrap();
+        vk_ctx.allocator.as_mut().unwrap().free(img.alloc).map_err(|e| { log_err!(e); } ).unwrap();
         vk_ctx.device.destroy_image_view(img.view, None);
     }
 }
