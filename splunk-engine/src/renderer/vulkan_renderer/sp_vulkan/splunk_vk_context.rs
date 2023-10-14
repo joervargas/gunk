@@ -4,9 +4,14 @@ use gpu_allocator::vulkan::Allocator;
 use crate::{log_err, log_info, vk_check};
 
 use super::vk_utils::*;
-
 use super::splunk_vk_loader::SpVkLoader;
 use super::splunk_vk_img::create_vk_image_view;
+use super::splunk_vk_render_pass::SpVkRenderPass;
+use super::vk_shader_utils::{ 
+    SpVkShaderModule, 
+    sp_create_shader_module, sp_destroy_shader_module, 
+    sp_get_vk_shader_create_info, get_vk_shader_stage_from_filename
+};
 
 pub struct SpVkQueue
 {
@@ -282,4 +287,191 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
 
         vk_ctx.device.free_command_buffers(vk_ctx.draw_cmds.pool, &[cmd_buffer]);
     }
+}
+
+
+pub fn sp_create_graphics_pipeline(
+        vk_ctx: &SpVkContext, 
+        renderpass: &SpVkRenderPass, 
+        layout: &vk::PipelineLayout, 
+        shader_files: &Vec<&str>,
+        topology: vk::PrimitiveTopology,
+        // b_dynamic_scissor: bool,
+        b_use_blending: bool,
+        custom_size: Option<vk::Extent2D>,
+        num_patch_control_points: u32
+    ) -> vk::Pipeline
+{
+    let mut shader_modules: Vec<SpVkShaderModule> = Vec::new();
+    let mut shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = Vec::new();
+
+    for shader_file in shader_files.iter()
+    {
+        let file_path = std::path::Path::new(shader_file);
+        let shader_module = sp_create_shader_module(&vk_ctx.device, &file_path);
+        
+        let stage = get_vk_shader_stage_from_filename(&file_path);
+
+        let shader_stage_ci = sp_get_vk_shader_create_info(&shader_module, stage, "main");
+
+        shader_modules.push(shader_module);
+        shader_stages.push(shader_stage_ci);
+    }
+
+    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        ..Default::default()
+    };
+
+    let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        topology: topology,
+        primitive_restart_enable: vk::FALSE,
+        ..Default::default()
+    };
+
+    let size: vk::Extent2D;
+    if custom_size.is_some()
+    {
+        size = custom_size.clone().unwrap();
+    } else {
+        size = vk_ctx.swapchain.extent.clone();
+    }
+    let viewport = vk::Viewport
+    {
+        x: 0.0,
+        y: 0.0,
+        width: size.width as f32,
+        height: size.height as f32,
+        min_depth: 0.0,
+        max_depth: 1.0
+    };
+
+    let scissor = vk::Rect2D
+    {
+        offset: vk::Offset2D{ x: 0, y: 0 },
+        extent: size
+    };
+
+    let viewport_state_info = vk::PipelineViewportStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        viewport_count: 1,
+        p_viewports: &viewport,
+        scissor_count: 1,
+        p_scissors: &scissor,
+        ..Default::default()
+    };
+
+    let rasterizer_state_info = vk::PipelineRasterizationStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        polygon_mode: vk::PolygonMode::FILL,
+        cull_mode: vk::CullModeFlags::BACK,
+        front_face: vk::FrontFace::CLOCKWISE,
+        line_width: 1.0,
+        ..Default::default()
+    };
+
+    let multi_sample_state_info = vk::PipelineMultisampleStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        rasterization_samples: vk::SampleCountFlags::TYPE_1,
+        sample_shading_enable: vk::FALSE,
+        min_sample_shading: 1.0,
+        ..Default::default()
+    };
+
+    let color_blend_attachment_state = vk::PipelineColorBlendAttachmentState
+    {
+        blend_enable: vk::TRUE,
+        src_color_blend_factor: vk::BlendFactor::SRC_ALPHA,
+        dst_color_blend_factor: vk::BlendFactor::ONE_MINUS_SRC_ALPHA,
+        color_blend_op: vk::BlendOp::ADD,
+        src_alpha_blend_factor: if b_use_blending { vk::BlendFactor::ONE_MINUS_SRC_ALPHA } else { vk::BlendFactor::ONE },
+        dst_alpha_blend_factor: vk::BlendFactor::ZERO,
+        alpha_blend_op: vk::BlendOp::ADD,
+        color_write_mask:
+            vk::ColorComponentFlags::R |
+            vk::ColorComponentFlags::G |
+            vk::ColorComponentFlags::B |
+            vk::ColorComponentFlags::A,
+    };
+
+    let color_blend_state_info = vk::PipelineColorBlendStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        logic_op_enable: vk::FALSE,
+        logic_op: vk::LogicOp::COPY,
+        attachment_count: 1,
+        p_attachments: &color_blend_attachment_state,
+        blend_constants: [ 0.0, 0.0, 0.0, 0.0 ],
+        ..Default::default()
+    };
+
+    let depth_stencil_state_info = vk::PipelineDepthStencilStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        depth_test_enable: if renderpass.info.b_use_depth { vk::TRUE } else { vk::FALSE },
+        depth_write_enable: if renderpass.info.b_use_depth { vk::TRUE } else { vk::FALSE },
+        depth_compare_op: vk::CompareOp::LESS,
+        depth_bounds_test_enable: vk::FALSE,
+        min_depth_bounds: 0.0,
+        max_depth_bounds: 1.0,
+        ..Default::default()
+    };
+
+    let dynamic_states = vec![ vk::DynamicState::SCISSOR ];
+    let dynamic_state_info = vk::PipelineDynamicStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        p_next: std::ptr::null(),
+        flags: vk::PipelineDynamicStateCreateFlags::empty(),
+        dynamic_state_count: dynamic_states.len() as u32,
+        p_dynamic_states: dynamic_states.as_ptr()
+    };
+
+    let tessellation_state_info = vk::PipelineTessellationStateCreateInfo
+    {
+        s_type: vk::StructureType::PIPELINE_TESSELLATION_STATE_CREATE_INFO,
+        p_next: std::ptr::null(),
+        flags: vk::PipelineTessellationStateCreateFlags::empty(),
+        patch_control_points: num_patch_control_points
+    };
+
+    let create_info = vk::GraphicsPipelineCreateInfo
+    {
+        s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
+        stage_count: shader_stages.len() as u32,
+        p_stages: shader_stages.as_ptr(),
+        p_vertex_input_state: &vertex_input_state,
+        p_input_assembly_state: &input_assembly_state,
+        p_tessellation_state: &tessellation_state_info,
+        p_viewport_state: &viewport_state_info,
+        p_rasterization_state: &rasterizer_state_info,
+        p_multisample_state: &multi_sample_state_info,
+        p_depth_stencil_state: &depth_stencil_state_info,
+        p_color_blend_state: &color_blend_state_info,
+        p_dynamic_state: &dynamic_state_info,
+        layout: *layout,
+        render_pass: renderpass.handle,
+        subpass: 0,
+        base_pipeline_handle: vk::Pipeline::null(),
+        base_pipeline_index: -1,
+        ..Default::default()
+    };
+
+    let pipeline = unsafe 
+    {
+        vk_ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None).map_err(|e| { log_err!(e.1); } ).unwrap()[0]
+    };
+
+    for module in shader_modules.iter_mut()
+    {
+        sp_destroy_shader_module(&vk_ctx.device,  module);
+    }
+
+    pipeline
 }
