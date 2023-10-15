@@ -189,7 +189,7 @@ pub fn create_vk_allocator(instance: &ash::Instance, physical_device: &vk::Physi
     };
 
     let allocator = gpu_allocator::vulkan::Allocator::new(&alloc_desc).map_err(|e| { log_err!(e); } ).unwrap();
-
+ 
     log_info!("Memory Allocator created");
 
     allocator
