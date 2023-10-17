@@ -5,9 +5,10 @@ use gpu_allocator::MemoryLocation;
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{sp_create_vk_buffer, SpVkBuffer, map_vk_allocation_data, sp_destroy_vk_buffer};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::SpVkImage;
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{sp_create_vk_buffer, SpVkBuffer, sp_destroy_vk_buffer, copy_vk_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers, sp_begin_single_time_vk_command_buffer, sp_end_single_time_vk_command_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, sp_destroy_vk_descriptor};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
 use crate::renderer::vulkan_renderer::sp_vulkan::vk_utils::{
     create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_assembly,
     create_vk_pipeline_info_dynamic_states, create_vk_pipeline_info_viewport, 
@@ -21,26 +22,28 @@ use crate::renderer::vulkan_renderer::sp_vulkan::{
     splunk_vk_render_pass::{SpVkRenderPassInfo, ERenderPassBit, sp_create_vk_renderpass, sp_destroy_vk_renderpass},
     vk_shader_utils::SpVkShaderModule
 };
-use crate::{log_info, log_err};
+use crate::{log_info, log_err, vk_check};
 
 use super::sp_vk_render_layer::{SpVkLayerDraw, SpVk2dLayerUpdate};
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Simple2dVertex
 {
-    pub pos:     [f32; 2],
-    pub color:   [f32; 3]
+    pub pos:        [f32; 2],
+    pub color:      [f32; 3],
+    pub tex_coord:  [f32; 2]
 }
 
 impl Simple2dVertex
 {
-    pub fn new(pos: glm::Vec2, color: glm::Vec3) -> Self
+    pub fn new(pos: glm::Vec2, color: glm::Vec3, tex_coords: glm::Vec2) -> Self
     {
         Self
         {
-            pos:     [pos.x, pos.y],
-            color:   [color.x, color.y, color.z]
+            pos:        [pos.x, pos.y],
+            color:      [color.x, color.y, color.z],
+            tex_coord:  [tex_coords.x, tex_coords.y]
         }
     }
 
@@ -55,7 +58,7 @@ impl Simple2dVertex
         ]
     }
 
-    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 2]
+    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 3]
     {
         [
             vk::VertexInputAttributeDescription{
@@ -69,46 +72,52 @@ impl Simple2dVertex
                 location: 1,
                 format: vk::Format::R32G32B32_SFLOAT,
                 offset: memoffset::offset_of!(Self, color) as u32
+            },
+            vk::VertexInputAttributeDescription{
+                binding: 0,
+                location: 2,
+                format: vk::Format::R32G32_SFLOAT,
+                offset: memoffset::offset_of!(Self, tex_coord) as u32
             }
         ]
     }
 }
 
-const VERTICES_DATA: [Simple2dVertex; 3] =
+const VERTICES_DATA: [Simple2dVertex; 4] =
 [
-    Simple2dVertex{
-        pos: [0.0, -0.5],
-        color: [1.0, 0.0, 0.0]
-    },
-    Simple2dVertex{
-        pos: [0.5, 0.5],
-        color: [0.0, 1.0, 0.0]
-    },
-    Simple2dVertex{
-        pos: [-0.5, 0.5],
-        color: [0.0, 0.0, 1.0]
-    }
+    Simple2dVertex{ pos: [-0.5, -0.5], color: [1.0, 0.0, 0.0], tex_coord: [1.0, 0.0] },
+    Simple2dVertex{ pos: [0.5, -0.5], color: [0.0, 1.0, 0.0], tex_coord: [0.0, 0.0] },
+    Simple2dVertex{ pos: [0.5, 0.5], color: [0.0, 0.0, 1.0], tex_coord: [0.0, 1.0] },
+    Simple2dVertex{ pos: [-0.5, 0.5], color: [1.0, 1.0, 1.0], tex_coord: [1.0, 1.0] }
 ];
+
+const INDICES_DATA: [u32; 6] = [0, 1, 2, 2, 3, 0];
 
 pub struct VkSimple2dLayer
 {
     renderpass:         SpVkRenderPass,
     framebuffers:       Vec<vk::Framebuffer>,
-    // descriptor:         SpVkDescriptor,
+    descriptor:         SpVkDescriptor,
     pipeline_layout:    vk::PipelineLayout,
     pipeline:           vk::Pipeline,
-    triangle_buffer:    Option<SpVkBuffer>,
-    // texture:            Option<SpVkImage>,
-    // sampler:            vk::Sampler
+    triangle_verts:     Option<SpVkBuffer>,
+    triangle_indices:   Option<SpVkBuffer>,
+    texture:            Option<SpVkImage>,
+    sampler:            vk::Sampler
 }
 
 impl VkSimple2dLayer
 {
     pub fn new(
             instance: &ash::Instance,
-            vk_ctx: &mut SpVkContext
+            vk_ctx: &mut SpVkContext,
+            texture_file: &std::path::Path
         ) -> Self
     {
+
+        let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
+        let sampler = create_vk_sampler(&vk_ctx.device);
+        
         let renderpass_info = SpVkRenderPassInfo{
             b_use_color: true,
             b_clear_color: false,
@@ -120,8 +129,10 @@ impl VkSimple2dLayer
         };
         let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         
+        let descriptor = Self::create_desc_sets(vk_ctx, &texture, &sampler);
+
         let framebuffers = sp_create_vk_color_only_framebuffers(&vk_ctx, &renderpass);
-        let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &Vec::new(), &Vec::new());
+        let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, &Vec::new());
 
         let mut shader_modules: Vec<SpVkShaderModule> = vec![
             SpVkShaderModule::new(&vk_ctx.device, to_shader_path("Simple2dLayer.vert").as_path()),
@@ -135,21 +146,122 @@ impl VkSimple2dLayer
             &pipeline_layout, None
         );
 
-        let triangle_buffer = sp_create_vk_buffer(
+        let buffer_size = std::mem::size_of::<Simple2dVertex>() * VERTICES_DATA.len();
+        let staging_triangle_verts = sp_create_vk_buffer(
             vk_ctx, "Triangle Buffer", 
-            vk::BufferUsageFlags::VERTEX_BUFFER, MemoryLocation::Unknown, 
-            std::mem::size_of::<Simple2dVertex>() as vk::DeviceSize
+            vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC, MemoryLocation::CpuToGpu, 
+            buffer_size as vk::DeviceSize
         );
-        
-        map_vk_allocation_data::<Simple2dVertex>(&triangle_buffer.allocation, &VERTICES_DATA, VERTICES_DATA.len());
 
+        unsafe{
+            let mapped_ptr = staging_triangle_verts.allocation.mapped_ptr().unwrap().as_ptr() as *mut Simple2dVertex;
+            mapped_ptr.copy_from_nonoverlapping(VERTICES_DATA.as_ptr(), VERTICES_DATA.len());
+        }
+        let triangle_verts = sp_create_vk_buffer(
+            vk_ctx, "Triangle Buffer", 
+            vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST, MemoryLocation::GpuOnly, 
+            buffer_size as vk::DeviceSize
+        );
+
+        let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+            copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_triangle_verts.handle, &triangle_verts.handle, buffer_size as vk::DeviceSize);
+        sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+
+        sp_destroy_vk_buffer(vk_ctx, staging_triangle_verts);
+        // *********************Index buffer ********************************************
+        let buffer_size = std::mem::size_of::<u32>() * INDICES_DATA.len();
+        let staging_triangle_indices = sp_create_vk_buffer(
+            vk_ctx, "Triangle Buffer Indices Staging", 
+            vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC, MemoryLocation::CpuToGpu, 
+            buffer_size as vk::DeviceSize
+        );
+
+        unsafe{
+            let mapped_ptr = staging_triangle_indices.allocation.mapped_ptr().unwrap().as_ptr() as *mut u32;
+            mapped_ptr.copy_from_nonoverlapping(INDICES_DATA.as_ptr(), INDICES_DATA.len());
+        }
+        let triangle_indices = sp_create_vk_buffer(
+            vk_ctx, "Triangle Buffer Indices", 
+            vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST, MemoryLocation::GpuOnly, 
+            buffer_size as vk::DeviceSize
+        );
+
+        let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+            copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_triangle_indices.handle, &triangle_indices.handle, buffer_size as vk::DeviceSize);
+        sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+
+        sp_destroy_vk_buffer(vk_ctx, staging_triangle_indices);
+        
         Self
         {
             renderpass,
             framebuffers,
+            descriptor,
             pipeline_layout,
             pipeline,
-            triangle_buffer: Some(triangle_buffer)
+            triangle_verts: Some(triangle_verts),
+            triangle_indices: Some(triangle_indices),
+            texture: Some(texture),
+            sampler,
+        }
+    }
+
+    fn create_desc_sets(
+            vk_ctx: &SpVkContext,
+            texture: &SpVkImage,
+            sampler: &vk::Sampler
+        ) -> SpVkDescriptor
+    {
+        let pool = sp_create_vk_desc_pool(vk_ctx, 0, 0, 1);
+
+        let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
+            get_vk_desc_set_layout_binding(0, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
+        ];
+
+        let layout_info = vk::DescriptorSetLayoutCreateInfo
+        {
+            s_type: vk::StructureType::DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::DescriptorSetLayoutCreateFlags::empty(),
+            binding_count: bindings.len() as u32,
+            p_bindings: bindings.as_ptr()
+        };
+        let layout = unsafe{
+            vk_check!(vk_ctx.device.create_descriptor_set_layout(&layout_info, None)).unwrap()
+        };
+
+        let layouts: Vec<vk::DescriptorSetLayout> = vec![layout; vk_ctx.frame_sync.get_num_frames_in_flight()];
+        let alloc_info = vk::DescriptorSetAllocateInfo
+        {
+            s_type: vk::StructureType::DESCRIPTOR_SET_ALLOCATE_INFO,
+            p_next: std::ptr::null(),
+            descriptor_pool: pool,
+            descriptor_set_count: layouts.len() as u32,
+            p_set_layouts: layouts.as_ptr()
+        };
+
+        let sets = unsafe {
+            vk_check!(vk_ctx.device.allocate_descriptor_sets(&alloc_info)).unwrap()
+        };
+
+        for i in 0..vk_ctx.frame_sync.get_num_frames_in_flight()
+        {
+            let image_info1 = vk::DescriptorImageInfo{ sampler: *sampler, image_view: texture.view, image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL};
+
+            let desc_writes: Vec<vk::WriteDescriptorSet> = vec![
+                get_vk_image_write_desc_set(&sets[i], &[image_info1], 0) 
+            ];
+
+            unsafe {
+                vk_ctx.device.update_descriptor_sets(desc_writes.as_slice(), &[])
+            }
+        }   
+
+        SpVkDescriptor
+        { 
+            layouts, 
+            pool, 
+            sets 
         }
     }
 
@@ -262,8 +374,14 @@ impl VkSimple2dLayer
     fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
-            vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.triangle_buffer.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
-            vk_ctx.device.cmd_draw(*cmd_buffer, VERTICES_DATA.len() as u32, 1, 0, 0);
+            vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.triangle_verts.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
+            vk_ctx.device.cmd_bind_index_buffer(*cmd_buffer, self.triangle_indices.as_ref().unwrap().handle, 0, vk::IndexType::UINT32);
+
+            let desc_set = [self.descriptor.sets[vk_ctx.frame_sync.get_current_frame_index()]];
+            vk_ctx.device.cmd_bind_descriptor_sets(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline_layout, 0, &desc_set, &[]);
+
+            // vk_ctx.device.cmd_draw(*cmd_buffer, VERTICES_DATA.len() as u32, 1, 0, 0);
+            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, INDICES_DATA.len() as u32, 1, 0, 0, 0);
         }
     }
 
@@ -281,7 +399,13 @@ impl SpVkLayerDraw for VkSimple2dLayer
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
     {
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_buffer.take().unwrap());
+        sp_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
+        sp_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
+        sp_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
+        unsafe { vk_ctx.device.destroy_sampler(self.sampler, None); }
+
+        sp_destroy_vk_descriptor(vk_ctx, &self.descriptor);
+        
         self.cleanup_framebuffers(&vk_ctx.device);
         sp_destroy_vk_renderpass(vk_ctx, &self.renderpass);
         unsafe {

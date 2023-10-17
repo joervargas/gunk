@@ -1,4 +1,4 @@
-use crate::renderer::renderer_utils;
+use crate::renderer::renderer_utils::{self, to_asset_path};
 use crate::{log_err, vk_check, log_info};
 
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::map_vk_allocation_data;
@@ -86,7 +86,7 @@ impl VulkanRenderer
         // layers3d.push(Box::new( VkModelLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("rubber_duck/scene.gltf").as_path(), &to_asset_path("rubber_duck/textures/Duck_baseColor.png").as_path())) );
 
         let mut layers2d = Vk2dLayerList::new();
-        layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx)) );
+        layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/statue.jpg"))) );
 
         Self
         {

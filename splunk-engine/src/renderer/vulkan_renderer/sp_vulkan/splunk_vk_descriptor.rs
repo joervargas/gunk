@@ -168,11 +168,12 @@ pub struct SpVkDescriptor
 
 pub fn sp_destroy_vk_descriptor(vk_ctx: &SpVkContext, descriptor: &SpVkDescriptor)
 {
-    for layout in descriptor.layouts.iter()
-    {
-        unsafe { vk_ctx.device.destroy_descriptor_set_layout(*layout, None) }
-    }
+    // for layout in descriptor.layouts.iter()
+    // {
+    //     unsafe { vk_ctx.device.destroy_descriptor_set_layout(*layout, None) }
+    // }
     unsafe{
+        vk_ctx.device.destroy_descriptor_set_layout(*descriptor.layouts.first().unwrap(), None);
         vk_ctx.device.destroy_descriptor_pool(descriptor.pool, None);
     }
 }
