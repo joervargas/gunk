@@ -7,8 +7,8 @@ pub trait GfxRenderer
 
     fn destroy(&mut self);
 
-    fn update(&mut self, window: &Window, current_img: u32);
-    fn draw_frame(&mut self, window: &Window, current_img: u32);
+    fn update(&mut self, window: &Window, current_img: usize);
+    fn draw_frame(&mut self, window: &Window, current_img: usize);
 
     fn render(&mut self, window: &Window);
 

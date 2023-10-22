@@ -39,7 +39,6 @@ pub struct VulkanRenderer
     vk_end_layer:           VkEndLayer,
     pub layers3d:           Vk3dLayerList,
     pub layers2d:           Vk2dLayerList,
-    // pub layers:             [Box<dyn SpVkLayerDraw>; 4],
     has_resized:            bool,
 }
 
@@ -158,7 +157,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         self.loader.destroy(); 
     }
 
-    fn update(&mut self, window: &Window, current_img: u32) 
+    fn update(&mut self, window: &Window, current_img: usize) 
     {
         let _inner_size = window.inner_size();
 
@@ -176,7 +175,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         self.layers2d.update(&self.vk_ctx, current_img);
     }
 
-    fn draw_frame(&mut self, _window: &Window, current_img: u32) 
+    fn draw_frame(&mut self, _window: &Window, current_img: usize) 
     {
         let draw_buffer = *self.vk_ctx.draw_cmds.get_current_buffer();
 
@@ -192,10 +191,10 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         {
             vk_check!(self.vk_ctx.device.begin_command_buffer(draw_buffer, &draw_cmd_begin_info));
 
-            self.vk_begin_layer.draw_frame(&self.vk_ctx, &draw_buffer, &current_img);
-            self.layers3d.draw_frame(&self.vk_ctx, &draw_buffer, &current_img);
-            self.layers2d.draw_frame(&self.vk_ctx, &draw_buffer, &current_img);
-            self.vk_end_layer.draw_frame(&self.vk_ctx, &draw_buffer, &current_img);
+            self.vk_begin_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.layers3d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.layers2d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.vk_end_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
 
             vk_check!(self.vk_ctx.device.end_command_buffer(draw_buffer));
         }
@@ -205,7 +204,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
     {
         unsafe { vk_check!(self.vk_ctx.device.wait_for_fences(&[*self.vk_ctx.frame_sync.get_current_in_flight_fence()], true, std::u64::MAX)).unwrap(); }
 
-        let (current_img, _is_sub_optimal) = unsafe {
+        let (current_img_idx, _is_sub_optimal) = unsafe {
             self.vk_ctx.swapchain.loader.acquire_next_image(self.vk_ctx.swapchain.handle, std::u64::MAX, *self.vk_ctx.frame_sync.get_current_wait_semaphore(), vk::Fence::null()).map_err(
                 |vk_result| 
                 { 
@@ -223,8 +222,9 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         // self.vk_ctx.reset_draw_cmd_pool();
         self.vk_ctx.reset_current_draw_cmd_buffer();
 
-        self.update(window, current_img);
-        self.draw_frame(window, current_img);
+        let current_img = current_img_idx as usize;
+        self.update(window, current_img as usize);
+        self.draw_frame(window, current_img as usize);
 
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
 
@@ -233,13 +233,11 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             s_type: vk::StructureType::SUBMIT_INFO,
             p_next: std::ptr::null(),
             wait_semaphore_count: 1,
-            // p_wait_semaphores: &self.vk_ctx.wait_semaphore,
             p_wait_semaphores: self.vk_ctx.frame_sync.get_current_wait_semaphore(),
             p_wait_dst_stage_mask: wait_stages.as_ptr(),
             command_buffer_count: 1,
             p_command_buffers: self.vk_ctx.draw_cmds.get_current_buffer(),
             signal_semaphore_count: 1,
-            // p_signal_semaphores: &self.vk_ctx.render_semaphore
             p_signal_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore()
         };
 
@@ -250,11 +248,10 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             s_type: vk::StructureType::PRESENT_INFO_KHR,
             p_next: std::ptr::null(),
             wait_semaphore_count: 1,
-            // p_wait_semaphores: &self.vk_ctx.render_semaphore,
             p_wait_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore(),
             swapchain_count: 1,
             p_swapchains: &self.vk_ctx.swapchain.handle,
-            p_image_indices: &current_img,
+            p_image_indices: &current_img_idx,
             ..Default::default()
         };
 

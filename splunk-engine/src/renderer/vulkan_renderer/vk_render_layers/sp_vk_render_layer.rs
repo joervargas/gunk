@@ -1,10 +1,10 @@
 use ash::{self, vk};
 
-use crate::renderer::vulkan_renderer::sp_vulkan::{splunk_vk_context::SpVkContext, splunk_vk_buffer::SpVkBuffer, splunk_vk_img::SpVkImage};
+use crate::renderer::vulkan_renderer::sp_vulkan::{splunk_vk_context::SpVkContext, splunk_vk_buffer::SpVkBuffer, splunk_vk_img::SpVkImage, splunk_vk_render_pass::SpVkRenderPass};
 
 pub trait SpVkLayerDraw
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32);
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize);
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext);
 
@@ -12,8 +12,28 @@ pub trait SpVkLayerDraw
 
     fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: Option<&SpVkImage>);
 
-    fn begin_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, render_pass: vk::RenderPass, pipeline: vk::Pipeline, framebuffer: vk::Framebuffer)
+    fn begin_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, renderpass: &SpVkRenderPass, pipeline: vk::Pipeline, framebuffer: vk::Framebuffer)
     {
+        let mut clear_values: Vec<vk::ClearValue> = Vec::new();
+        if renderpass.info.b_clear_color
+        {
+            clear_values.push(
+                vk::ClearValue
+                {
+                    color: vk::ClearColorValue{ float32: [ 0.0, 0.0, 0.0, 1.0 ] }
+                }
+            );
+        }
+        if renderpass.info.b_clear_depth
+        {
+            clear_values.push(
+                vk::ClearValue
+                {
+                    depth_stencil: vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 }
+                }
+            );
+        }
+
         let screen_rect = vk::Rect2D
         {
             offset: vk::Offset2D{ x: 0, y: 0 },
@@ -24,14 +44,11 @@ pub trait SpVkLayerDraw
         {
             s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
             p_next: std::ptr::null(),
-            // render_pass: self.renderpass.handle,
-            // framebuffer: self.framebuffers[current_image],
-            render_pass,
+            render_pass: renderpass.handle,
             framebuffer,
             render_area: screen_rect,
-            // clear_value_count: clear_values.len() as u32,
-            // p_clear_values: clear_values.as_ptr()
-            ..Default::default()
+            clear_value_count: clear_values.len() as u32,
+            p_clear_values: clear_values.as_ptr()
         };
 
         let viewports: Vec<vk::Viewport> = vec![
@@ -66,17 +83,14 @@ pub trait SpVkLayerDraw
         {
             vk_ctx.device.cmd_begin_render_pass(*cmd_buffer, &render_begin_info, vk::SubpassContents::INLINE);
 
-            // vk_ctx.device.cmd_bind_pipeline(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
-            vk_ctx.device.cmd_bind_pipeline(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, pipeline);
+            if pipeline != vk::Pipeline::null()
+            {
+                vk_ctx.device.cmd_bind_pipeline(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, pipeline);
+            }
 
             vk_ctx.device.cmd_set_viewport(*cmd_buffer, 0, &viewports.as_slice());
             vk_ctx.device.cmd_set_scissor(*cmd_buffer, 0, &scissors.as_slice());
 
-            // vk_ctx.device.cmd_bind_descriptor_sets(
-            //     *cmd_buffer, vk::PipelineBindPoint::GRAPHICS, 
-            //     self.pipeline_layout, 0, 
-            //     &[], &[0]
-            // );
         }
     }
 
@@ -89,7 +103,7 @@ pub trait SpVkLayerDraw
 
 pub trait SpVk3dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: u32);
+    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: usize);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: &SpVkImage);
 }
@@ -99,7 +113,7 @@ impl<T: SpVkLayerDraw + SpVk3dLayerUpdate> VkDrawLayer3d for T{}
 
 pub trait SpVk2dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext, current_img: u32);
+    fn update(&self, vk_ctx: &SpVkContext, current_img: usize);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext);
 }
@@ -132,7 +146,7 @@ impl Vk3dLayerList
 
 impl SpVkLayerDraw for Vk3dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
         for layer in self.list.iter()
         {
@@ -167,7 +181,7 @@ impl SpVkLayerDraw for Vk3dLayerList
 
 impl SpVk3dLayerUpdate for Vk3dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: u32)
+    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: usize)
     {
         for layer in self.list.iter()
         {
@@ -203,7 +217,7 @@ impl Vk2dLayerList
 
 impl SpVkLayerDraw for Vk2dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
         for layer in self.list.iter()
         {
@@ -238,7 +252,7 @@ impl SpVkLayerDraw for Vk2dLayerList
 
 impl SpVk2dLayerUpdate for Vk2dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext, current_img: u32)
+    fn update(&self, vk_ctx: &SpVkContext, current_img: usize)
     {
         for layer in self.list.iter()
         {

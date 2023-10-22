@@ -301,9 +301,9 @@ impl VkModelLayer
 
 impl SpVkLayerDraw for VkModelLayer
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
-        self.begin_renderpass(vk_ctx, cmd_buffer, self.renderpass.handle, self.pipeline, self.framebuffers[*current_image as usize]);
+        self.begin_renderpass(vk_ctx, cmd_buffer, &self.renderpass, self.pipeline, self.framebuffers[current_image]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
@@ -341,7 +341,7 @@ impl SpVkLayerDraw for VkModelLayer
 
 impl SpVk3dLayerUpdate for VkModelLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage, _current_img: u32)
+    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage, _current_img: usize)
     {
         todo!()
     }

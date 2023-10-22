@@ -101,7 +101,7 @@ pub fn sp_create_vk_desc_pool(
     img_sample_count: u32
 ) -> vk::DescriptorPool
 {
-    let img_count = vk_ctx.swapchain.images.len() as u32;
+    let img_count = vk_ctx.frame_sync.get_num_frames_in_flight() as u32;
     let mut pool_sizes: Vec<vk::DescriptorPoolSize> = Vec::new();
 
     if uniform_count > 0
@@ -168,10 +168,6 @@ pub struct SpVkDescriptor
 
 pub fn sp_destroy_vk_descriptor(vk_ctx: &SpVkContext, descriptor: &SpVkDescriptor)
 {
-    // for layout in descriptor.layouts.iter()
-    // {
-    //     unsafe { vk_ctx.device.destroy_descriptor_set_layout(*layout, None) }
-    // }
     unsafe{
         vk_ctx.device.destroy_descriptor_set_layout(*descriptor.layouts.first().unwrap(), None);
         vk_ctx.device.destroy_descriptor_pool(descriptor.pool, None);

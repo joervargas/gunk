@@ -146,6 +146,11 @@ impl VkSimple2dLayer
             &pipeline_layout, None
         );
 
+        for shader in shader_modules.iter_mut()
+        {
+            shader.destroy(&vk_ctx.device);
+        }
+
         let buffer_size = std::mem::size_of::<Simple2dVertex>() * VERTICES_DATA.len();
         let staging_triangle_verts = sp_create_vk_buffer(
             vk_ctx, "Triangle Buffer", 
@@ -270,7 +275,7 @@ impl VkSimple2dLayer
             shader_modules: &mut Vec<SpVkShaderModule>,
             renderpass: &SpVkRenderPass,
             layout: &vk::PipelineLayout,
-            _custom_extent: Option<vk::Extent2D>
+            custom_extent: Option<vk::Extent2D>
         ) -> vk::Pipeline    
     {
         log_info!("creating VkSimple2dLayer pipeline... ");
@@ -290,15 +295,20 @@ impl VkSimple2dLayer
         
         let assembly_info = create_vk_pipeline_info_assembly(vk::PrimitiveTopology::TRIANGLE_LIST, vk::FALSE);
 
+        let mut custom_width = 0;
+        let mut custom_height = 0;
+        if custom_extent.is_some()
+        {
+            custom_width = custom_extent.as_ref().unwrap().width;
+            custom_height = custom_extent.as_ref().unwrap().height;
+        }
         let viewports: Vec<vk::Viewport> = vec![
             vk::Viewport
             {
                 x: 0.0,
                 y: 0.0,
-                // width: if custom_width > 0 { custom_width as f32 } else { vk_ctx.swapchain.extent.width as f32 },
-                // height: if custom_height > 0 { custom_height as f32 } else { vk_ctx.swapchain.extent.height as f32 },
-                width: vk_ctx.swapchain.extent.width as f32,
-                height: vk_ctx.swapchain.extent.height as f32,
+                width: if custom_width > 0 { custom_width as f32 } else { vk_ctx.swapchain.extent.width as f32 },
+                height: if custom_height > 0 { custom_height as f32 } else { vk_ctx.swapchain.extent.height as f32 },
                 min_depth: 0.0,
                 max_depth: 1.0
             }
@@ -310,10 +320,8 @@ impl VkSimple2dLayer
                 extent: 
                     vk::Extent2D
                     { 
-                        // width: if custom_width > 0 { custom_width } else { vk_ctx.swapchain.extent.width },
-                        // height: if custom_height > 0 { custom_height } else { vk_ctx.swapchain.extent.height }
-                        width: vk_ctx.swapchain.extent.width,
-                        height: vk_ctx.swapchain.extent.height
+                        width: if custom_width > 0 { custom_width } else { vk_ctx.swapchain.extent.width },
+                        height: if custom_height > 0 { custom_height } else { vk_ctx.swapchain.extent.height }
                     }
             }
         ];
@@ -363,11 +371,6 @@ impl VkSimple2dLayer
         };
         log_info!("VkSimple2dLayer pipeline created.");
 
-        for shader in shader_modules.iter_mut()
-        {
-            shader.destroy(&vk_ctx.device);
-        }
-
         pipeline
     }
 
@@ -389,10 +392,9 @@ impl VkSimple2dLayer
 
 impl SpVkLayerDraw for VkSimple2dLayer
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
-        // self.begin_renderpass(vk_ctx, cmd_buffer, *current_image as usize);
-        self.begin_renderpass(vk_ctx, cmd_buffer, self.renderpass.handle, self.pipeline, self.framebuffers[*current_image as usize]);
+        self.begin_renderpass(vk_ctx, cmd_buffer, &self.renderpass, self.pipeline, self.framebuffers[current_image]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
@@ -428,7 +430,7 @@ impl SpVkLayerDraw for VkSimple2dLayer
 
 impl SpVk2dLayerUpdate for VkSimple2dLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _current_img: u32)
+    fn update(&self, _vk_ctx: &SpVkContext, _current_img: usize)
     {
     }
 

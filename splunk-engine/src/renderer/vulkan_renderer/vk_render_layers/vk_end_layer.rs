@@ -44,29 +44,10 @@ impl VkEndLayer
 
 impl SpVkLayerDraw for VkEndLayer
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: &u32)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
-        let screen_rect = vk::Rect2D
-        {
-            offset: vk::Offset2D{ x: 0, y: 0},
-            extent: vk::Extent2D{ width: vk_ctx.swapchain.extent.width, height: vk_ctx.swapchain.extent.height }
-        };
-
-        let renderpass_begin_info = vk::RenderPassBeginInfo
-        {
-            s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
-            p_next: std::ptr::null(),
-            render_pass: self.renderpass.handle,
-            framebuffer: self.framebuffers[*current_image as usize],
-            render_area: screen_rect,
-            ..Default::default()
-        };
-
-        unsafe
-        {
-            vk_ctx.device.cmd_begin_render_pass(*cmd_buffer, &renderpass_begin_info, vk::SubpassContents::INLINE);
-            vk_ctx.device.cmd_end_render_pass(*cmd_buffer);
-        }
+        self.begin_renderpass(vk_ctx, cmd_buffer, &self.renderpass, vk::Pipeline::null(), self.framebuffers[current_image]);
+        self.end_renderpass(vk_ctx, cmd_buffer);
     }
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
