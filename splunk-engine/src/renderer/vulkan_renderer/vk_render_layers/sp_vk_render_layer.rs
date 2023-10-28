@@ -144,6 +144,24 @@ impl Vk3dLayerList
     }
 }
 
+impl std::ops::Index<usize> for Vk3dLayerList
+{
+    type Output = Box<dyn VkDrawLayer3d>;
+
+    fn index(&self, index: usize) -> &Self::Output 
+    {
+        &self.list[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Vk3dLayerList
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output
+    {
+        &mut self.list[index]
+    }
+}
+
 impl SpVkLayerDraw for Vk3dLayerList
 {
     fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
@@ -212,6 +230,24 @@ impl Vk2dLayerList
     pub fn pop(&mut self) -> Option<Box<dyn VkDrawLayer2d>>
     {
         self.list.pop()
+    }
+}
+
+impl std::ops::Index<usize> for Vk2dLayerList
+{
+    type Output = Box<dyn VkDrawLayer2d>;
+
+    fn index(&self, index: usize) -> &Self::Output 
+    {
+        &self.list[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Vk2dLayerList
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output
+    {
+        &mut self.list[index]
     }
 }
 

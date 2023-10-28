@@ -234,7 +234,7 @@ pub struct  SpVkCommands
 {
     pub pool:               vk::CommandPool,
     pub buffers:            Vec<vk::CommandBuffer>,
-    current_frame_index:    usize
+    // current_frame_index:    usize
 }
 
 impl SpVkCommands
@@ -254,7 +254,8 @@ impl SpVkCommands
         let pool = create_vk_command_pool(device, queue_family_index);
         let buffers = allocate_vk_command_buffers(device, &pool, buffer_count);
 
-        Self{ pool, buffers, current_frame_index: 0 }
+        // Self{ pool, buffers, current_frame_index: 0 }
+        Self{ pool, buffers }
     }
 
     /// ### fn SpVkCommands::destroy( &self, ... )
@@ -266,35 +267,28 @@ impl SpVkCommands
     /// </pre>
     pub fn destroy(&self, device: &ash::Device)
     {
-        unsafe
-        {
-            device.destroy_command_pool(self.pool, None);
-        }
+        unsafe{ device.destroy_command_pool(self.pool, None); }
     }
 
-    pub fn reset_pool(&self, device: &ash::Device)
-    {
-        unsafe{
-            vk_check!(device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty()));
-        }
-    }
+    // pub fn reset_pool(&self, device: &ash::Device)
+    // {
+    //     unsafe { vk_check!(device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty())); }
+    // }
 
-    pub fn reset_buffer(&self, device: &ash::Device)
-    {
-        unsafe{
-            vk_check!(device.reset_command_buffer(self.buffers[self.current_frame_index], vk::CommandBufferResetFlags::empty())).unwrap();
-        }
-    }
+    // pub fn reset_buffer(&self, device: &ash::Device)
+    // {
+    //     unsafe { vk_check!(device.reset_command_buffer(self.buffers[self.current_frame_index], vk::CommandBufferResetFlags::empty())).unwrap(); }
+    // }
 
-    pub fn set_next_index(&mut self, next_index: usize)
-    {
-        self.current_frame_index = next_index;
-    }
+    // pub fn set_next_index(&mut self, next_index: usize)
+    // {
+    //     self.current_frame_index = next_index;
+    // }
 
-    pub fn get_current_buffer(&self) -> &vk::CommandBuffer
-    {
-        &self.buffers[self.current_frame_index]
-    }
+    // pub fn get_current_buffer(&self) -> &vk::CommandBuffer
+    // {
+    //     &self.buffers[self.current_frame_index]
+    // }
 }
 
 pub struct SpVkFrameSync
@@ -476,21 +470,21 @@ impl SpVkContext
         self.swapchain = SpVkSwapchain::new(loader, &self.device, &self.physical_device, &self.queues.get_index_list(), width, height);
     }
 
-    pub fn reset_draw_cmd_pool(&self)
-    {
-        self.draw_cmds.reset_pool(&self.device);
-    }
+    // pub fn reset_draw_cmd_pool(&self)
+    // {
+    //     self.draw_cmds.reset_pool(&self.device);
+    // }
 
-    pub fn reset_current_draw_cmd_buffer(&self)
-    {
-        self.draw_cmds.reset_buffer(&self.device);
-    }
+    // pub fn reset_current_draw_cmd_buffer(&self)
+    // {
+    //     self.draw_cmds.reset_buffer(&self.device);
+    // }
 
-    pub fn set_next_frame_index(&mut self) 
-    {
-        self.frame_sync.set_next_frame_index();
-        self.draw_cmds.set_next_index(self.frame_sync.get_current_frame_index());
-    }
+    // pub fn set_next_frame_index(&mut self) 
+    // {
+    //     self.frame_sync.set_next_frame_index();
+    //     self.draw_cmds.set_next_index(self.frame_sync.get_current_frame_index());
+    // }
 
 }
 

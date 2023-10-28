@@ -134,6 +134,32 @@ impl VulkanRenderer
         log_info!("VkSwapchain and VkFramebuffers recreated.");
     }
 
+
+    fn draw_frame(&mut self, _window: &Window, draw_buffer: &vk::CommandBuffer, current_img: usize) 
+    {
+        // let draw_buffer = *self.vk_ctx.draw_cmds.get_current_buffer();
+
+        let draw_cmd_begin_info = vk::CommandBufferBeginInfo
+        {
+            s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
+            p_next: std::ptr::null(),
+            flags: vk::CommandBufferUsageFlags::SIMULTANEOUS_USE,
+            p_inheritance_info: std::ptr::null()
+        };
+
+        unsafe
+        {
+            vk_check!(self.vk_ctx.device.begin_command_buffer(*draw_buffer, &draw_cmd_begin_info));
+
+            self.vk_begin_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.layers3d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.layers2d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+            self.vk_end_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
+
+            vk_check!(self.vk_ctx.device.end_command_buffer(*draw_buffer));
+        }
+    }
+
 }
 
 impl renderer_utils::GfxRenderer for VulkanRenderer
@@ -175,31 +201,6 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         self.layers2d.update(&self.vk_ctx, current_img);
     }
 
-    fn draw_frame(&mut self, _window: &Window, current_img: usize) 
-    {
-        let draw_buffer = *self.vk_ctx.draw_cmds.get_current_buffer();
-
-        let draw_cmd_begin_info = vk::CommandBufferBeginInfo
-        {
-            s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
-            p_next: std::ptr::null(),
-            flags: vk::CommandBufferUsageFlags::SIMULTANEOUS_USE,
-            p_inheritance_info: std::ptr::null()
-        };
-
-        unsafe
-        {
-            vk_check!(self.vk_ctx.device.begin_command_buffer(draw_buffer, &draw_cmd_begin_info));
-
-            self.vk_begin_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
-            self.layers3d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
-            self.layers2d.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
-            self.vk_end_layer.draw_frame(&self.vk_ctx, &draw_buffer, current_img);
-
-            vk_check!(self.vk_ctx.device.end_command_buffer(draw_buffer));
-        }
-    }
-
     fn render(&mut self, window: &Window) 
     {
         unsafe { vk_check!(self.vk_ctx.device.wait_for_fences(&[*self.vk_ctx.frame_sync.get_current_in_flight_fence()], true, std::u64::MAX)).unwrap(); }
@@ -218,13 +219,13 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         };
 
         unsafe { vk_check!(self.vk_ctx.device.reset_fences( &[*self.vk_ctx.frame_sync.get_current_in_flight_fence()] )).unwrap(); }
-
-        // self.vk_ctx.reset_draw_cmd_pool();
-        self.vk_ctx.reset_current_draw_cmd_buffer();
+        let draw_buffer = self.vk_ctx.draw_cmds.buffers[self.vk_ctx.frame_sync.get_current_frame_index()];
+        unsafe { vk_check!( self.vk_ctx.device.reset_command_buffer(draw_buffer, vk::CommandBufferResetFlags::empty()) ).unwrap(); }
+        // self.vk_ctx.reset_current_draw_cmd_buffer();
 
         let current_img = current_img_idx as usize;
         self.update(window, current_img as usize);
-        self.draw_frame(window, current_img as usize);
+        self.draw_frame(window, &draw_buffer, current_img as usize);
 
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
 
@@ -236,7 +237,8 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             p_wait_semaphores: self.vk_ctx.frame_sync.get_current_wait_semaphore(),
             p_wait_dst_stage_mask: wait_stages.as_ptr(),
             command_buffer_count: 1,
-            p_command_buffers: self.vk_ctx.draw_cmds.get_current_buffer(),
+            // p_command_buffers: self.vk_ctx.draw_cmds.get_current_buffer(),
+            p_command_buffers: &draw_buffer,
             signal_semaphore_count: 1,
             p_signal_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore()
         };
@@ -276,7 +278,8 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             vk_check!(self.vk_ctx.device.device_wait_idle());
         }
 
-        self.vk_ctx.set_next_frame_index();
+        // self.vk_ctx.set_next_frame_index();
+        self.vk_ctx.frame_sync.set_next_frame_index();
     }
 
     fn resized(&mut self)
