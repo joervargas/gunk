@@ -1,53 +1,48 @@
 use std::ffi::CString;
 
-use ash::vk;
+use ash::{self, vk};
+
 use nalgebra_glm as glm;
-use memoffset;
 
-use crate::renderer::{
-    vulkan_renderer::sp_vulkan::{
-        splunk_vk_render_pass::{
-            SpVkRenderPass, SpVkRenderPassInfo, ERenderPassBit, 
-            sp_create_vk_renderpass, sp_destroy_vk_renderpass
-        }, 
-        splunk_vk_descriptor::{
-            SpVkDescriptor, sp_create_vk_desc_pool, 
-            get_vk_desc_set_layout_binding, get_vk_buffer_write_desc_set, 
-            get_vk_image_write_desc_set, sp_destroy_vk_descriptor
-        }, 
-        splunk_vk_buffer::{SpVkBuffer, sp_create_vk_array_buffer, sp_destroy_vk_buffer},
-        splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img}, 
-        splunk_vk_context::{SpVkContext, sp_create_vk_color_depth_framebuffers, sp_destroy_vk_framebuffers}, 
-        vk_utils::{
-            create_vk_pipeline_layout, create_vk_pipeline_info_vertex_input, 
-            create_vk_pipeline_info_assembly, create_vk_pipeline_info_color_blend_attachment, 
-            create_vk_pipeline_info_viewport, create_vk_pipeline_info_rasterization, 
-            create_vk_pipeline_info_multisample, create_vk_pipeline_info_color_blend, 
-            create_vk_pipeline_info_depth_stencil, create_vk_pipeline_info_dynamic_states, 
-            create_vk_pipeline_info_tessellation
-        }, 
-        vk_shader_utils::SpVkShaderModule
-    },
-    renderer_utils::to_shader_path
+use crate::renderer::renderer_utils::to_shader_path;
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{SpVkBuffer, sp_destroy_vk_buffer, sp_create_vk_array_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_destroy_vk_framebuffers, sp_create_vk_color_depth_framebuffers};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, get_vk_buffer_write_desc_set, sp_destroy_vk_descriptor};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
+use crate::renderer::vulkan_renderer::sp_vulkan::vk_utils::{
+    create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_assembly,
+    create_vk_pipeline_info_dynamic_states, create_vk_pipeline_info_viewport, 
+    create_vk_pipeline_info_rasterization, create_vk_pipeline_info_multisample, 
+    create_vk_pipeline_info_color_blend_attachment, create_vk_pipeline_info_color_blend,
+    create_vk_pipeline_info_tessellation, create_vk_pipeline_layout, create_vk_pipeline_info_depth_stencil
 };
+use crate::renderer::vulkan_renderer::sp_vulkan::{
+    splunk_vk_context::SpVkContext,
+    splunk_vk_render_pass::SpVkRenderPass,
+    splunk_vk_render_pass::{SpVkRenderPassInfo, ERenderPassBit, sp_create_vk_renderpass, sp_destroy_vk_renderpass},
+    vk_shader_utils::SpVkShaderModule
+};
+use crate::{log_info, log_err, vk_check};
 
-use crate::{ vk_check, log_info, log_err };
+use super::sp_vk_render_layer::{SpVkLayerDraw, SpVk3dLayerUpdate};
 
-use super::sp_vk_render_layer::{ SpVkLayerDraw, SpVk3dLayerUpdate };
-
-pub struct SkyBoxVertex
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Simple3dVertex
 {
     pub pos:        [f32; 3],
+    pub color:      [f32; 3],
     pub tex_coord:  [f32; 2]
 }
 
-impl SkyBoxVertex
+impl Simple3dVertex
 {
-    pub fn new(pos: glm::Vec3, tex_coords: glm::Vec2) -> Self
+    pub fn new(pos: glm::Vec3, color: glm::Vec3, tex_coords: glm::Vec2) -> Self
     {
         Self
         {
             pos:        [pos.x, pos.y, pos.z],
+            color:      [color.x, color.y, color.z],
             tex_coord:  [tex_coords.x, tex_coords.y]
         }
     }
@@ -63,7 +58,7 @@ impl SkyBoxVertex
         ]
     }
 
-    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 2]
+    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 3]
     {
         [
             vk::VertexInputAttributeDescription{
@@ -75,6 +70,12 @@ impl SkyBoxVertex
             vk::VertexInputAttributeDescription{
                 binding: 0,
                 location: 1,
+                format: vk::Format::R32G32B32_SFLOAT,
+                offset: memoffset::offset_of!(Self, color) as u32
+            },
+            vk::VertexInputAttributeDescription{
+                binding: 0,
+                location: 2,
                 format: vk::Format::R32G32_SFLOAT,
                 offset: memoffset::offset_of!(Self, tex_coord) as u32
             }
@@ -82,23 +83,25 @@ impl SkyBoxVertex
     }
 }
 
-// const SKYBOX_VERTICES_DATA: [SkyBoxVertex; 8] =
-// [
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-// ];
+const VERTICES_DATA: [Simple3dVertex; 8] =
+[
+    Simple3dVertex{ pos: [-0.5, -0.5,  0.0 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
+    Simple3dVertex{ pos: [ 0.5, -0.5,  0.0 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
+    Simple3dVertex{ pos: [ 0.5,  0.5,  0.0 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
+    Simple3dVertex{ pos: [-0.5,  0.5,  0.0 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
 
-// const SKYBOX_INDICES_DATA: [u32; 1] = [
-//     0,
-// ];
+    Simple3dVertex{ pos: [-0.5, -0.5, -0.5 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
+    Simple3dVertex{ pos: [ 0.5, -0.5, -0.5 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
+    Simple3dVertex{ pos: [ 0.5,  0.5, -0.5 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
+    Simple3dVertex{ pos: [-0.5,  0.5, -0.5 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
+];
 
-pub struct VkSkyBoxLayer
+const INDICES_DATA: [u32; 12] = [
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
+];
+
+pub struct VkSimple3dLayer
 {
     renderpass:         SpVkRenderPass,
     framebuffers:       Vec<vk::Framebuffer>,
@@ -111,7 +114,7 @@ pub struct VkSkyBoxLayer
     sampler:            vk::Sampler
 }
 
-impl VkSkyBoxLayer
+impl VkSimple3dLayer
 {
     pub fn new(
             instance: &ash::Instance,
@@ -121,6 +124,7 @@ impl VkSkyBoxLayer
             texture_file: &std::path::Path
         ) -> Self
     {
+
         let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
         let sampler = create_vk_sampler(&vk_ctx.device);
         
@@ -158,8 +162,8 @@ impl VkSkyBoxLayer
             shader.destroy(&vk_ctx.device);
         }
 
-        let triangle_verts = sp_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &vec![]);
-        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &vec![]);
+        let triangle_verts = sp_create_vk_array_buffer::<Simple3dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
+        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
 
         Self
         {
@@ -256,10 +260,10 @@ impl VkSkyBoxLayer
         }
 
         let mut vertex_input_info = create_vk_pipeline_info_vertex_input();
-        vertex_input_info.vertex_binding_description_count = SkyBoxVertex::get_binding_descriptions().len() as u32;
-        vertex_input_info.p_vertex_binding_descriptions = SkyBoxVertex::get_binding_descriptions().as_ptr();
-        vertex_input_info.vertex_attribute_description_count = SkyBoxVertex::get_attribute_descriptions().len() as u32;
-        vertex_input_info.p_vertex_attribute_descriptions = SkyBoxVertex::get_attribute_descriptions().as_ptr();
+        vertex_input_info.vertex_binding_description_count = Simple3dVertex::get_binding_descriptions().len() as u32;
+        vertex_input_info.p_vertex_binding_descriptions = Simple3dVertex::get_binding_descriptions().as_ptr();
+        vertex_input_info.vertex_attribute_description_count = Simple3dVertex::get_attribute_descriptions().len() as u32;
+        vertex_input_info.p_vertex_attribute_descriptions = Simple3dVertex::get_attribute_descriptions().as_ptr();
         
         let assembly_info = create_vk_pipeline_info_assembly(vk::PrimitiveTopology::TRIANGLE_LIST, vk::FALSE);
 
@@ -354,13 +358,13 @@ impl VkSkyBoxLayer
             vk_ctx.device.cmd_bind_descriptor_sets(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline_layout, 0, &desc_set, &[]);
 
             // vk_ctx.device.cmd_draw(*cmd_buffer, VERTICES_DATA.len() as u32, 1, 0, 0);
-            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, 0 as u32, 1, 0, 0, 0);
+            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, INDICES_DATA.len() as u32, 1, 0, 0, 0);
         }
     }
 
 }
 
-impl SpVkLayerDraw for VkSkyBoxLayer
+impl SpVkLayerDraw for VkSimple3dLayer
 {
     fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
@@ -398,10 +402,11 @@ impl SpVkLayerDraw for VkSkyBoxLayer
 
 }
 
-impl SpVk3dLayerUpdate for VkSkyBoxLayer
+impl SpVk3dLayerUpdate for VkSimple3dLayer
 {
     fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage)
     {
         // update 
     }
+
 }

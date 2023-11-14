@@ -14,9 +14,9 @@ impl CamView
 {
     pub fn get_matrix(&self) -> glm::Mat4
     {
+        // glm::look_at(&self.pos, &(self.pos + self.front), &self.up)
         glm::look_at(&self.pos, &self.front, &self.up)
     }
-
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -28,11 +28,20 @@ pub struct CamProjection
     pub far:        f32,
 }
 
+pub const Y_CORRECTION: glm::Mat4 = glm::Mat4::new(
+    1.0, 0.0, 0.0, 0.0,
+    0.0, -1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0,
+);
+
 impl CamProjection
 {
     pub fn get_matrix(&self) -> glm::Mat4
     {
-        glm::perspective(self.aspect, self.fov, self.near, self.far)
+        let mut proj = glm::perspective(self.aspect, self.fov, self.near, self.far);
+        proj.m22 *= -1.0;
+        proj
     }
 }
 
@@ -67,6 +76,6 @@ impl SpCameraUniformData
     {
         self.model = model.as_slice()[..].try_into().unwrap();
         self.view = camera.view.get_matrix().as_slice()[..].try_into().unwrap();
-        self.view = camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
+        self.proj = camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
     }
 }

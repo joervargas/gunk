@@ -1,12 +1,12 @@
 use std::ffi::CString;
 
 use ash::{self, vk};
-use gpu_allocator::MemoryLocation;
+
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{sp_create_vk_buffer, SpVkBuffer, sp_destroy_vk_buffer, copy_vk_buffer};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers, sp_begin_single_time_vk_command_buffer, sp_end_single_time_vk_command_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{SpVkBuffer, sp_destroy_vk_buffer, sp_create_vk_array_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, sp_destroy_vk_descriptor};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
 use crate::renderer::vulkan_renderer::sp_vulkan::vk_utils::{
@@ -151,51 +151,9 @@ impl VkSimple2dLayer
             shader.destroy(&vk_ctx.device);
         }
 
-        let buffer_size = std::mem::size_of::<Simple2dVertex>() * VERTICES_DATA.len();
-        let staging_triangle_verts = sp_create_vk_buffer(
-            vk_ctx, "Triangle Buffer", 
-            vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC, MemoryLocation::CpuToGpu, 
-            buffer_size as vk::DeviceSize
-        );
-
-        unsafe{
-            let mapped_ptr = staging_triangle_verts.allocation.mapped_ptr().unwrap().as_ptr() as *mut Simple2dVertex;
-            mapped_ptr.copy_from_nonoverlapping(VERTICES_DATA.as_ptr(), VERTICES_DATA.len());
-        }
-        let triangle_verts = sp_create_vk_buffer(
-            vk_ctx, "Triangle Buffer", 
-            vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST, MemoryLocation::GpuOnly, 
-            buffer_size as vk::DeviceSize
-        );
-
-        let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
-            copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_triangle_verts.handle, &triangle_verts.handle, buffer_size as vk::DeviceSize);
-        sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
-
-        sp_destroy_vk_buffer(vk_ctx, staging_triangle_verts);
-        // *********************Index buffer ********************************************
-        let buffer_size = std::mem::size_of::<u32>() * INDICES_DATA.len();
-        let staging_triangle_indices = sp_create_vk_buffer(
-            vk_ctx, "Triangle Buffer Indices Staging", 
-            vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC, MemoryLocation::CpuToGpu, 
-            buffer_size as vk::DeviceSize
-        );
-
-        unsafe{
-            let mapped_ptr = staging_triangle_indices.allocation.mapped_ptr().unwrap().as_ptr() as *mut u32;
-            mapped_ptr.copy_from_nonoverlapping(INDICES_DATA.as_ptr(), INDICES_DATA.len());
-        }
-        let triangle_indices = sp_create_vk_buffer(
-            vk_ctx, "Triangle Buffer Indices", 
-            vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST, MemoryLocation::GpuOnly, 
-            buffer_size as vk::DeviceSize
-        );
-
-        let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
-            copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_triangle_indices.handle, &triangle_indices.handle, buffer_size as vk::DeviceSize);
-        sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
-
-        sp_destroy_vk_buffer(vk_ctx, staging_triangle_indices);
+        // create buffers
+        let triangle_verts = sp_create_vk_array_buffer::<Simple2dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
+        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
         
         Self
         {
@@ -430,7 +388,7 @@ impl SpVkLayerDraw for VkSimple2dLayer
 
 impl SpVk2dLayerUpdate for VkSimple2dLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _current_img: usize)
+    fn update(&self, _vk_ctx: &SpVkContext)
     {
     }
 

@@ -21,10 +21,8 @@ layout(location = 1) out vec2 outTexCoords;
 
 void main()
 {
-    outTexCoords = inTexCoords;
-
-
     gl_Position = vec4(inPos, 0.0, 1.0);
 
     fragColor = inColor;
+    outTexCoords = inTexCoords;
 }

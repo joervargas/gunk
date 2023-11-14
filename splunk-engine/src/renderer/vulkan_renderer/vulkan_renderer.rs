@@ -1,5 +1,5 @@
 use crate::renderer::renderer_utils::{self, to_asset_path};
-use crate::{log_err, vk_check, log_info};
+use crate::{log_err, vk_check, log_info, log_warn};
 
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::map_vk_allocation_data;
 use crate::renderer::vulkan_renderer::vk_render_layers::sp_vk_render_layer::SpVk3dLayerUpdate;
@@ -15,11 +15,12 @@ use super::sp_vulkan::{
     splunk_vk_context::SpVkContext
 };
 use super::vk_render_layers::sp_vk_render_layer::{Vk2dLayerList, Vk3dLayerList, SpVk2dLayerUpdate};
+use super::vk_render_layers::vk_simple3d_layer::VkSimple3dLayer;
 use super::vk_render_layers::{
     sp_vk_render_layer::SpVkLayerDraw,
     vk_begin_layer::VkBeginLayer,
     vk_end_layer::VkEndLayer,
-    vk_simple2d_layer::VkSimple2dLayer
+    // vk_simple2d_layer::VkSimple2dLayer
 };
 
 use winit::window::Window;
@@ -40,6 +41,7 @@ pub struct VulkanRenderer
     pub layers3d:           Vk3dLayerList,
     pub layers2d:           Vk2dLayerList,
     has_resized:            bool,
+    model_matrix:           glm::Mat4,
 }
 
 impl VulkanRenderer
@@ -50,24 +52,24 @@ impl VulkanRenderer
 
         let inner_size = window.inner_size();
         let mut vk_ctx = SpVkContext::new(&loader, inner_size.width, inner_size.height);
+        let num_frames = vk_ctx.frame_sync.get_num_frames_in_flight();
 
         let depth_img = sp_create_vk_depth_img(&loader.instance, &mut vk_ctx, inner_size.width, inner_size.height);
 
-        let swapchain_image_count = vk_ctx.swapchain.images.len();
         let transform_uniforms = sp_create_vk_buffers(
             &mut vk_ctx,
             "transform uniform",
             BufferUsageFlags::UNIFORM_BUFFER,
             MemoryLocation::CpuToGpu,
             std::mem::size_of::<SpCameraUniformData>() as vk::DeviceSize,
-            swapchain_image_count
+            num_frames
         );
 
         let view = CamView
         {
-            pos: glm::Vec3::new(0.0, 1.0, -1.0),
-            front: glm::Vec3::new(0.0, 0.0, 0.0),
-            up: glm::Vec3::new(0.0, 1.0, 0.0)
+            pos: glm::Vec3::new(0.0, -2.0, 1.0),
+            front: glm::Vec3::new(0.0, 1.0, 0.0),
+            up: glm::Vec3::new(0.0, 0.0, 1.0)
         };
         let projection = CamProjection
         {
@@ -81,11 +83,14 @@ impl VulkanRenderer
         let vk_begin_layer = VkBeginLayer::new(&loader.instance, &mut vk_ctx, Some(&depth_img));
         let vk_end_layer = VkEndLayer::new(&loader.instance, &mut vk_ctx, Some(&depth_img));
 
-        let layers3d = Vk3dLayerList::new();
+        let mut layers3d = Vk3dLayerList::new();
+        layers3d.push( Box::new(VkSimple3dLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("textures/statue.jpg"))) );
         // layers3d.push(Box::new( VkModelLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("rubber_duck/scene.gltf").as_path(), &to_asset_path("rubber_duck/textures/Duck_baseColor.png").as_path())) );
 
-        let mut layers2d = Vk2dLayerList::new();
-        layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/statue.jpg"))) );
+        let layers2d = Vk2dLayerList::new();
+        // layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/statue.jpg"))) );
+
+        let model_matrix = glm::Mat4::identity();
 
         Self
         {
@@ -98,7 +103,8 @@ impl VulkanRenderer
             vk_end_layer,
             layers3d,
             layers2d,
-            has_resized: false
+            has_resized: false,
+            model_matrix
         }
     }
 
@@ -183,11 +189,12 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         self.loader.destroy(); 
     }
 
-    fn update(&mut self, window: &Window, current_img: usize) 
+    fn update(&mut self, window: &Window, delta_time: f32) 
     {
         let _inner_size = window.inner_size();
 
-        let m = glm::rotate(&glm::Mat4::identity(), glm::pi::<f32>(), &glm::vec3(0.0, 1.0, 0.0)).as_slice()[..].try_into().unwrap();
+        self.model_matrix = glm::rotate(&self.model_matrix, glm::pi::<f32>() * delta_time, &glm::vec3(0.0, 0.0, 1.0));
+        let m = self.model_matrix.as_slice()[..].try_into().unwrap();
         let v = self.camera.view.get_matrix().as_slice()[..].try_into().unwrap();
         let p = self.camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
 
@@ -195,36 +202,36 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         // let data = &[camera_uniform_data].as_slice()[..].try_into().unwrap();
         // map_vk_buffer_data(&self.vk_ctx.device, &self.transform_uniforms[current_img as usize].allocation, data, std::mem::size_of::<SpCameraUniformData>() as vk::DeviceSize);
 
-        map_vk_allocation_data::<SpCameraUniformData>(&self.transform_uniforms[current_img as usize].allocation, &[camera_uniform_data], 1);
+        let current_frame = self.vk_ctx.frame_sync.get_current_frame_index();
+        map_vk_allocation_data::<SpCameraUniformData>(&self.transform_uniforms[current_frame].allocation, &[camera_uniform_data], 1);
 
-        self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_img as usize], self.depth_img.as_ref().unwrap(), current_img);
-        self.layers2d.update(&self.vk_ctx, current_img);
+        self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], self.depth_img.as_ref().unwrap());
+        self.layers2d.update(&self.vk_ctx);
     }
 
-    fn render(&mut self, window: &Window) 
+    fn render(&mut self, window: &Window, delta_time: f32) 
     {
         unsafe { vk_check!(self.vk_ctx.device.wait_for_fences(&[*self.vk_ctx.frame_sync.get_current_in_flight_fence()], true, std::u64::MAX)).unwrap(); }
 
         let (current_img_idx, _is_sub_optimal) = unsafe {
             self.vk_ctx.swapchain.loader.acquire_next_image(self.vk_ctx.swapchain.handle, std::u64::MAX, *self.vk_ctx.frame_sync.get_current_wait_semaphore(), vk::Fence::null()).map_err(
                 |vk_result| 
-                { 
+                {
                     match vk_result
                     {
-                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); }
+                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); log_warn!("Out of date KHR, aquire next image."); }
                         _ => { log_err!(vk_result); }
                     }
-                }  
+                }
             ).unwrap()
         };
 
         unsafe { vk_check!(self.vk_ctx.device.reset_fences( &[*self.vk_ctx.frame_sync.get_current_in_flight_fence()] )).unwrap(); }
         let draw_buffer = self.vk_ctx.draw_cmds.buffers[self.vk_ctx.frame_sync.get_current_frame_index()];
         unsafe { vk_check!( self.vk_ctx.device.reset_command_buffer(draw_buffer, vk::CommandBufferResetFlags::empty()) ).unwrap(); }
-        // self.vk_ctx.reset_current_draw_cmd_buffer();
 
         let current_img = current_img_idx as usize;
-        self.update(window, current_img as usize);
+        self.update(window, delta_time);
         self.draw_frame(window, &draw_buffer, current_img as usize);
 
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -237,7 +244,6 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
             p_wait_semaphores: self.vk_ctx.frame_sync.get_current_wait_semaphore(),
             p_wait_dst_stage_mask: wait_stages.as_ptr(),
             command_buffer_count: 1,
-            // p_command_buffers: self.vk_ctx.draw_cmds.get_current_buffer(),
             p_command_buffers: &draw_buffer,
             signal_semaphore_count: 1,
             p_signal_semaphores: self.vk_ctx.frame_sync.get_current_render_semaphore()
@@ -264,7 +270,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
                 {
                     match vk_result
                     {
-                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); }
+                        vk::Result::ERROR_OUT_OF_DATE_KHR => { self.recreate_swapchain(window); log_warn!("Out of date KHR, present queue"); }
                         _ => { log_err!(vk_result); }
                     }
                 }

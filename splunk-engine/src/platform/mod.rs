@@ -7,7 +7,10 @@ use winit::{
     event_loop::{ EventLoop, ControlFlow }, window::WindowId, 
 };
 
-use crate::core::application::Application;
+use crate::core::{ 
+    application::Application, 
+    fps_limiter::FPSLimiter
+};
 
 /// ### fn main_loop( ... )
 /// *The main device loop*
@@ -19,9 +22,13 @@ use crate::core::application::Application;
 /// </pre>
 pub fn main_loop(mut app: Application, evloop: EventLoop<()>)
 {
+    let mut tick_counter = FPSLimiter::new();
+
     evloop.run(move | events, _, control_flow|
     {
+        let delta_time = tick_counter.delta_time();
         *control_flow = ControlFlow::Poll;
+
         match events
         {
             Event::WindowEvent { window_id, event } =>
@@ -40,7 +47,8 @@ pub fn main_loop(mut app: Application, evloop: EventLoop<()>)
             {
                 if !app.minimized
                 {
-                    app.renderer.render(&app.window);
+                    app.renderer.render(&app.window, delta_time);
+                    tick_counter.tick_frame();
                 }
             },
             Event::RedrawEventsCleared => {},

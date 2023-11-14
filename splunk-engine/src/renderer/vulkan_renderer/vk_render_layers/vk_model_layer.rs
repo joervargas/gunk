@@ -341,7 +341,7 @@ impl SpVkLayerDraw for VkModelLayer
 
 impl SpVk3dLayerUpdate for VkModelLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage, _current_img: usize)
+    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage)
     {
         todo!()
     }

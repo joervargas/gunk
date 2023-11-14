@@ -7,10 +7,9 @@ pub trait GfxRenderer
 
     fn destroy(&mut self);
 
-    fn update(&mut self, window: &Window, current_img: usize);
-    // fn draw_frame(&mut self, window: &Window, current_img: usize);
+    fn update(&mut self, window: &Window, delta_time: f32);
 
-    fn render(&mut self, window: &Window);
+    fn render(&mut self, window: &Window, delta_time: f32);
 
     fn resized(&mut self);
 
@@ -30,3 +29,4 @@ pub fn to_shader_path(file_name: &str) -> std::path::PathBuf
         .join("shaders")
         .join(file_name)
 }
+

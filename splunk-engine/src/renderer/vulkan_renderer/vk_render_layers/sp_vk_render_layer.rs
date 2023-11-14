@@ -4,7 +4,7 @@ use crate::renderer::vulkan_renderer::sp_vulkan::{splunk_vk_context::SpVkContext
 
 pub trait SpVkLayerDraw
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize);
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize);
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext);
 
@@ -103,7 +103,7 @@ pub trait SpVkLayerDraw
 
 pub trait SpVk3dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: usize);
+    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: &SpVkImage);
 }
@@ -113,7 +113,7 @@ impl<T: SpVkLayerDraw + SpVk3dLayerUpdate> VkDrawLayer3d for T{}
 
 pub trait SpVk2dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext, current_img: usize);
+    fn update(&self, vk_ctx: &SpVkContext);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext);
 }
@@ -164,11 +164,11 @@ impl std::ops::IndexMut<usize> for Vk3dLayerList
 
 impl SpVkLayerDraw for Vk3dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
     {
         for layer in self.list.iter()
         {
-            layer.draw_frame(vk_ctx, cmd_buffer, current_image);
+            layer.draw_frame(vk_ctx, cmd_buffer, current_img);
         }
     }
 
@@ -199,11 +199,11 @@ impl SpVkLayerDraw for Vk3dLayerList
 
 impl SpVk3dLayerUpdate for Vk3dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage, current_img: usize)
+    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage)
     {
         for layer in self.list.iter()
         {
-            layer.update(vk_ctx, transform_uniform, depth_img, current_img);
+            layer.update(vk_ctx, transform_uniform, depth_img);
         }
     }
 
@@ -253,11 +253,11 @@ impl std::ops::IndexMut<usize> for Vk2dLayerList
 
 impl SpVkLayerDraw for Vk2dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
+    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
     {
         for layer in self.list.iter()
         {
-            layer.draw_frame(vk_ctx, cmd_buffer, current_image);
+            layer.draw_frame(vk_ctx, cmd_buffer, current_img);
         }
     }
 
@@ -288,11 +288,11 @@ impl SpVkLayerDraw for Vk2dLayerList
 
 impl SpVk2dLayerUpdate for Vk2dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext, current_img: usize)
+    fn update(&self, vk_ctx: &SpVkContext)
     {
         for layer in self.list.iter()
         {
-            layer.update(vk_ctx, current_img);
+            layer.update(vk_ctx);
         }
     }
 
