@@ -466,7 +466,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
 {
     let img = image::open(std::path::Path::new(file_name)).map_err( |e| { log_err!(e); } ).unwrap();
     let pixels = img.to_rgba8().into_raw();
-
+    
     let img_size : vk::DeviceSize = (std::mem::size_of::<u8>() as u32 * img.width() * img.height() * 4) as vk::DeviceSize;
     let staging_buffer: vk::Buffer;
     let staging_allocation: Allocation;
