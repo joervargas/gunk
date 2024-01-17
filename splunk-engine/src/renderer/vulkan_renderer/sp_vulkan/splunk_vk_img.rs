@@ -1,4 +1,6 @@
 
+use core::panic;
+
 use ash::{self, vk};
 use gpu_allocator::{
     MemoryLocation,
@@ -463,7 +465,8 @@ pub struct SpVkImage
 ///     SpVkImage
 /// </pre>
 pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImage
-{
+{  
+
     let img = image::open(std::path::Path::new(file_name)).map_err( |e| { log_err!(e); } ).unwrap();
     let pixels = img.to_rgba8().into_raw();
     
@@ -504,7 +507,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
         copy_vk_buffer_to_img(
             &vk_ctx.device, &cmd_buffer, 
             &staging_buffer, &handle, 
-            img.width(), img.height(), 
+            img.width(), img.height(),
             1);
 
         transition_vk_image_layout(

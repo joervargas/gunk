@@ -7,8 +7,9 @@ use ash::{
     },
 };
 
+pub use winit::raw_window_handle as raw_window_handle;
+use raw_window_handle::HasWindowHandle;
 use winit::window::Window;
-use raw_window_handle::{ HasRawDisplayHandle, HasRawWindowHandle };
 
 use crate::{ vk_check, vk_validate_info, vk_validate_warn, vk_validate_err, log_err, log_info };
 
@@ -120,7 +121,7 @@ impl SpVkSurface
     {
         let loader = Surface::new(&entry, &instance);
 
-        let handle  = unsafe{  vk_check!(ash_window::create_surface(&entry, &instance, window.raw_display_handle(), window.raw_window_handle(), None)).unwrap() };
+        let handle  = unsafe{  vk_check!( ash_window::create_surface(&entry, &instance, window, None) ).unwrap() };
     
         Self{ loader, handle }
     }
@@ -238,7 +239,7 @@ pub fn create_vk_instance(window: &Window, entry: &Entry, app_name: CString, app
         api_version: ash::vk::API_VERSION_1_3
     };
 
-    let extension_names = vk_check!( ash_window::enumerate_required_extensions(window.raw_display_handle()) ).unwrap();
+    let extension_names = vk_check!( ash_window::enumerate_required_extensions(window) ).unwrap();
     let debug_utils_name = &[DebugUtils::name().as_ptr()];
     let extension_names = [ extension_names,  debug_utils_name ].concat();
 

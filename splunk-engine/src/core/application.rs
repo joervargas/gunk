@@ -57,7 +57,7 @@ impl Application
     /// </pre>
     pub fn new(config: AppConfig) -> (Self, EventLoop<()>)
     {
-        let evloop: EventLoop<()> = EventLoop::new();
+        let evloop: EventLoop<()> = EventLoop::new().unwrap();
         let window: Window = Window::new(&evloop).unwrap();
         
         window.set_resizable(config.b_resizable);
@@ -68,7 +68,7 @@ impl Application
             let fullscreen = Fullscreen::Exclusive(video_mode);
             window.set_fullscreen(Some(fullscreen));
         } else {
-            window.set_inner_size(PhysicalSize::new(config.width, config.height));
+            let _new_size = window.request_inner_size(PhysicalSize::new(config.width, config.height));
         }
         
         let renderer = Box::new(
