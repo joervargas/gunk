@@ -5,8 +5,9 @@ use crate::{log_info, vk_check};
 
 use super::splunk_vk_render_pass::SpVkRenderPass;
 use super::vk_utils::*;
-use super::splunk_vk_loader::SpVkLoader;
 use super::splunk_vk_img::create_vk_image_view;
+
+use super::splunk_vk_loader::SpVkLoader;
 
 /// ### SpVkQueue struct
 /// *Contain Vulkan queue family index and a VkQueue handle*

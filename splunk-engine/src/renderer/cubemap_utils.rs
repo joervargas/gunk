@@ -213,12 +213,73 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &BitMap) -> BitMap
     let face_width = bitmap.w / 3;
     let face_height = bitmap.h / 4;
 
-    
-    todo!();
+    let mut cubemap = BitMap::new(face_width, face_height, Some(6), bitmap.comp, &Vec::new());
+
+    let pixel_size = cubemap.comp * cubemap.get_bytes_per_component();
+    let src = bitmap.data.as_ptr();
+    let dst = cubemap.data.as_mut_ptr();
+    let mut dst_offset: isize = 0;
+
+	/*
+			------
+			| +Y |
+	 ----------------
+	 | -X | -Z | +X |
+	 ----------------
+			| -Y |
+			------
+			| +Z |
+			------
+	*/
+
+    for face in 0..6
+    {
+        for j in 0..face_height
+        {
+            for i in 0..face_width
+            {
+                let mut x = 0;
+                let mut y = 0;
+
+                match face
+                {
+                    0 => { // + X
+                        x = i;
+                        y = face_height + j;
+                    }
+                    1 => { // -X
+                        x = 2 * face_width + i;
+                        y = 1 * face_height + j;
+                    }
+                    2 => { // + Y
+                        x = 2 * face_width - (i + 1);
+                        y = 1 * face_height - (j + 1);
+                    }
+                    3 => { // - Y
+                        x = 2 * face_width - (i + 1);
+                        y = 3 * face_height - (j + 1);
+                    }
+                    4 => { // + Z
+                        x = 2 * face_width - (i + 1);
+                        y = bitmap.h - (j + 1);
+                    }
+                    5 => { // - Z
+                        x = face_width + i;
+                        y = face_height + j;
+                    }
+                    _ => {}
+                }
+                let src_offset = (y * bitmap.w + x) as isize * pixel_size as isize;
+                unsafe { std::ptr::copy_nonoverlapping(src.offset(src_offset), dst.offset(dst_offset),pixel_size); }
+                dst_offset += pixel_size as isize;
+            } // i
+        } // j
+    } // j
+
+    cubemap
 }
 
-pub fn convert_equirectangle_to_cubemap_faces(bitmap: &mut BitMap)
+pub fn convert_equirectangle_to_cubemap_faces(bitmap: &BitMap) -> BitMap
 {
-    convert_equirectangle_to_vertical_cross(bitmap);
-    convert_vertical_cross_to_cubemap_faces(bitmap);
+    convert_vertical_cross_to_cubemap_faces(&convert_equirectangle_to_vertical_cross(bitmap))
 }

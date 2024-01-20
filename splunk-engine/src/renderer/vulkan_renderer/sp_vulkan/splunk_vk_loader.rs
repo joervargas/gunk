@@ -8,7 +8,7 @@ use ash::{
 };
 
 pub use winit::raw_window_handle as raw_window_handle;
-use raw_window_handle::HasWindowHandle;
+
 use winit::window::Window;
 
 use crate::{ vk_check, vk_validate_info, vk_validate_warn, vk_validate_err, log_err, log_info };

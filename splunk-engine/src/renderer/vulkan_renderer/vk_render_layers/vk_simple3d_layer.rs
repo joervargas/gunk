@@ -121,6 +121,7 @@ impl VkSimple3dLayer
             vk_ctx: &mut SpVkContext,
             camera_uniforms: &Vec<SpVkBuffer>,
             depth_img: &SpVkImage,
+            // mesh_file: &std::path::Path,
             texture_file: &std::path::Path
         ) -> Self
     {

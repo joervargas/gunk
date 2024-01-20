@@ -1,6 +1,3 @@
-
-use core::panic;
-
 use ash::{self, vk};
 use gpu_allocator::{
     MemoryLocation,
@@ -13,14 +10,16 @@ use gpu_allocator::{
 };
 
 use super::splunk_vk_buffer::create_vk_buffer;
-
-use crate::{vk_check, log_err};
-
 use super::splunk_vk_context::{
     SpVkContext, 
     sp_begin_single_time_vk_command_buffer, 
     sp_end_single_time_vk_command_buffer
 };
+
+use crate::{vk_check, log_err};
+
+use core::panic;
+
 
 /// ### fn create_vk_image( ... ) -> (vk::Image, vulkan::Allocation)
 /// *Creates a vk::Image and an Allocation for memory)
@@ -77,9 +76,10 @@ pub fn create_vk_image(
     };
     let allocation = vk_check!(allocator.allocate(&alloc_info)).unwrap();
     unsafe { vk_check!(device.bind_image_memory(img, allocation.memory(), allocation.offset())); }
-    
+
     (img, allocation)
 }
+
 
 /// ### fn create_vk_image_view( ... ) -> vk::ImageView
 /// *Creates a vk::ImageView*
@@ -101,26 +101,26 @@ pub fn create_vk_image_view(
         view_type: vk::ImageViewType, layer_count: u32, mip_levels: u32
     ) -> vk::ImageView
 {
-    let create_info = vk::ImageViewCreateInfo
+let create_info = vk::ImageViewCreateInfo
+{
+    s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
+    p_next: std::ptr::null(),
+    flags: vk::ImageViewCreateFlags::empty(),
+    image: *image,
+    view_type: view_type,
+    format: *format,
+    subresource_range: vk::ImageSubresourceRange
     {
-        s_type: vk::StructureType::IMAGE_VIEW_CREATE_INFO,
-        p_next: std::ptr::null(),
-        flags: vk::ImageViewCreateFlags::empty(),
-        image: *image,
-        view_type: view_type,
-        format: *format,
-        subresource_range: vk::ImageSubresourceRange
-        {
-            aspect_mask: aspect_flags,
-            base_mip_level: 0,
-            level_count: mip_levels,
-            base_array_layer: 0,
-            layer_count: layer_count,
-        },
-        ..Default::default()
-    };
+        aspect_mask: aspect_flags,
+        base_mip_level: 0,
+        level_count: mip_levels,
+        base_array_layer: 0,
+        layer_count: layer_count,
+    },
+    ..Default::default()
+};
 
-    unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
+unsafe { vk_check!( device.create_image_view(&create_info, None) ).unwrap() }
 }
 
 /// ### fn create_vk_sampler( ... ) -> vk::Sampler
@@ -157,6 +157,7 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
 
     unsafe{ vk_check!(device.create_sampler(&create_info, None)).unwrap() }
 }
+
 
 /// ### fn find_supported_vk_format( ... ) -> vk::Format
 /// *Loops through supplied candidate formats. <br>
@@ -377,6 +378,7 @@ pub fn transition_vk_image_layout(
     }
 }
 
+
 /// ### fn copy_vk_buffer_to_img( ... )
 /// *Copies vk::Buffer contents to a vk::Image*
 /// <pre>
@@ -438,6 +440,7 @@ pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::Phys
         vk::FormatFeatureFlags::DEPTH_STENCIL_ATTACHMENT
     )
 }
+
 
 /// ### struct SpVkImage
 /// *A convenience struct. has the image, memory allocation, and view*
@@ -589,3 +592,4 @@ pub fn sp_destroy_vk_img(vk_ctx: &mut SpVkContext, img: SpVkImage)
         vk_ctx.device.destroy_image_view(img.view, None);
     }
 }
+

@@ -97,8 +97,10 @@ impl BitMap
 {
     pub fn new(w: i32, h: i32, d: Option<i32>, comp: usize, pixels: &Vec<u8>) -> Self
     {
-        let (depth, bm_type ) = if d.is_some() { (d.unwrap(), EBitMapType::BitMapTypeCube) } else { (1, EBitMapType::BitMapType2D) };
-        let size = (w * h * depth) as usize * comp;
+        let d = if d.is_some() { d.unwrap() } else { 1 };
+        let bm_type = if d == 6 { EBitMapType::BitMapTypeCube } else  { EBitMapType::BitMapType2D };
+
+        let size = (w * h * d) as usize * comp;
         let mut data = Vec::new();
         data.resize(size, 0);
 
@@ -108,7 +110,7 @@ impl BitMap
             // unsafe { std::ptr::copy_nonoverlapping(pixels.as_ptr(), data.as_mut_ptr(), size); }
         }
 
-        Self { bm_type, w, h, d: depth, comp, data }
+        Self { bm_type, w, h, d, comp, data }
     }
 
     pub fn set_pixel(&mut self, x: i32, y: i32, c: &glm::Vec4)
