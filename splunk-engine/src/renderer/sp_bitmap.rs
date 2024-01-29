@@ -83,24 +83,24 @@ pub enum EBitMapType
 // impl<T: From<u8> + Scalar> BitMapScalar for T{}
 
 #[derive(Clone)]
-pub struct BitMap
+pub struct SpBitMap
 {
     pub bm_type: EBitMapType,
-    pub w: i32,
-    pub h: i32,
-    pub d: i32,
-    pub comp: usize,
+    pub width: i32,
+    pub height: i32,
+    pub layers: i32,
+    pub channels: usize,
     pub data: Vec<u8>
 }
 
-impl BitMap
+impl SpBitMap
 {
-    pub fn new(w: i32, h: i32, d: Option<i32>, comp: usize, pixels: &Vec<u8>) -> Self
+    pub fn new(width: i32, height: i32, layers: Option<i32>, channels: usize, pixels: &Vec<u8>) -> Self
     {
-        let d = if d.is_some() { d.unwrap() } else { 1 };
-        let bm_type = if d == 6 { EBitMapType::BitMapTypeCube } else  { EBitMapType::BitMapType2D };
+        let layers = if layers.is_some() { layers.unwrap() } else { 1 };
+        let bm_type = if layers == 6 { EBitMapType::BitMapTypeCube } else  { EBitMapType::BitMapType2D };
 
-        let size = (w * h * d) as usize * comp;
+        let size = (width * height * layers) as usize * channels;
         let mut data = Vec::new();
         data.resize(size, 0);
 
@@ -110,27 +110,27 @@ impl BitMap
             // unsafe { std::ptr::copy_nonoverlapping(pixels.as_ptr(), data.as_mut_ptr(), size); }
         }
 
-        Self { bm_type, w, h, d, comp, data }
+        Self { bm_type, width, height, layers, channels, data }
     }
 
     pub fn set_pixel(&mut self, x: i32, y: i32, c: &glm::Vec4)
     {
-        let offset = self.comp * ((y * self.w + x) as usize);
-        if self.comp > 0 { self.data[offset + 0] = (c.x * 255.0) as u8; }
-        if self.comp > 1 { self.data[offset + 1] = (c.y * 255.0) as u8; }
-        if self.comp > 2 { self.data[offset + 2] = (c.z * 255.0) as u8; }
-        if self.comp > 3 { self.data[offset + 3] = (c.w * 255.0) as u8; }
+        let offset = self.channels * ((y * self.width + x) as usize);
+        if self.channels > 0 { self.data[offset + 0] = (c.x * 255.0) as u8; }
+        if self.channels > 1 { self.data[offset + 1] = (c.y * 255.0) as u8; }
+        if self.channels > 2 { self.data[offset + 2] = (c.z * 255.0) as u8; }
+        if self.channels > 3 { self.data[offset + 3] = (c.w * 255.0) as u8; }
     }
 
     pub fn get_pixel(&self, x: i32, y: i32) -> glm::Vec4
     {
-        let offset = self.comp * ((y * self.w + x) as usize);
+        let offset = self.channels * ((y * self.width + x) as usize);
 
         let result = glm::Vec4::new(
-            if self.comp > 0 { self.data[offset + 0].clone() as f32 / 255.0 } else { 0.0 },
-            if self.comp > 1 { self.data[offset + 1].clone() as f32 / 255.0 } else { 0.0 },
-            if self.comp > 2 { self.data[offset + 2].clone() as f32 / 255.0 } else { 0.0 },
-            if self.comp > 3 { self.data[offset + 3].clone() as f32 / 255.0 } else { 0.0 }
+            if self.channels > 0 { self.data[offset + 0].clone() as f32 / 255.0 } else { 0.0 },
+            if self.channels > 1 { self.data[offset + 1].clone() as f32 / 255.0 } else { 0.0 },
+            if self.channels > 2 { self.data[offset + 2].clone() as f32 / 255.0 } else { 0.0 },
+            if self.channels > 3 { self.data[offset + 3].clone() as f32 / 255.0 } else { 0.0 }
         );
         result
     }

@@ -1,11 +1,10 @@
 
-use std::f32;
-
 use glm::{IVec2, vec3};
+use image::DynamicImage;
 // use image::{DynamicImage, imageops::FilterType, GenericImageView};
 use nalgebra_glm as glm;
 
-use crate::renderer::bitmap::{BitMap, EBitMapType};
+use crate::{log_err, renderer::sp_bitmap::{SpBitMap, EBitMapType}};
 // use crate::renderer::bitmap::BitMapScalar;
 
 
@@ -151,15 +150,15 @@ pub fn face_coords_to_xyz(i: i32, j: i32, face_id: i32, face_size: i32) -> glm::
 //     todo!()
 // }
 
-pub fn convert_equirectangle_to_vertical_cross(bitmap: &BitMap) -> BitMap
+pub fn convert_equirectangle_to_vertical_cross(bitmap: &SpBitMap) -> SpBitMap
 {
     if bitmap.bm_type != EBitMapType::BitMapType2D { return bitmap.clone(); }
 
-    let face_size = bitmap.w / 4;
+    let face_size = bitmap.width / 4;
     let w = face_size * 3;
     let h = face_size * 4;
 
-    let mut result = BitMap::new(w, h, None, bitmap.comp, &Vec::new());
+    let mut result = SpBitMap::new(w, h, None, bitmap.channels, &Vec::new());
     let face_offsets : Vec<glm::IVec2> = vec![
         IVec2::new(face_size, face_size * 3),
         IVec2::new(0, face_size),
@@ -169,8 +168,8 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &BitMap) -> BitMap
         IVec2::new(face_size, face_size *2)
     ];
 
-    let clamp_w = bitmap.w - 1;
-    let clamp_h = bitmap.h - 1;
+    let clamp_w = bitmap.width - 1;
+    let clamp_h = bitmap.height - 1;
 
     for face in 0..6
     {
@@ -208,14 +207,14 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &BitMap) -> BitMap
     result
 }
 
-pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &BitMap) -> BitMap
+pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &SpBitMap) -> SpBitMap
 {
-    let face_width = bitmap.w / 3;
-    let face_height = bitmap.h / 4;
+    let face_width = bitmap.width / 3;
+    let face_height = bitmap.height / 4;
 
-    let mut cubemap = BitMap::new(face_width, face_height, Some(6), bitmap.comp, &Vec::new());
+    let mut cubemap = SpBitMap::new(face_width, face_height, Some(6), bitmap.channels, &Vec::new());
 
-    let pixel_size = cubemap.comp * cubemap.get_bytes_per_component();
+    let pixel_size = cubemap.channels * cubemap.get_bytes_per_component();
     let src = bitmap.data.as_ptr();
     let dst = cubemap.data.as_mut_ptr();
     let mut dst_offset: isize = 0;
@@ -261,7 +260,7 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &BitMap) -> BitMap
                     }
                     4 => { // + Z
                         x = 2 * face_width - (i + 1);
-                        y = bitmap.h - (j + 1);
+                        y = bitmap.height - (j + 1);
                     }
                     5 => { // - Z
                         x = face_width + i;
@@ -269,7 +268,7 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &BitMap) -> BitMap
                     }
                     _ => {}
                 }
-                let src_offset = (y * bitmap.w + x) as isize * pixel_size as isize;
+                let src_offset = (y * bitmap.width + x) as isize * pixel_size as isize;
                 unsafe { std::ptr::copy_nonoverlapping(src.offset(src_offset), dst.offset(dst_offset),pixel_size); }
                 dst_offset += pixel_size as isize;
             } // i
@@ -279,7 +278,47 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &BitMap) -> BitMap
     cubemap
 }
 
-pub fn convert_equirectangle_to_cubemap_faces(bitmap: &BitMap) -> BitMap
+pub fn convert_equirectangle_to_cubemap_faces(bitmap: &SpBitMap) -> SpBitMap
 {
     convert_vertical_cross_to_cubemap_faces(&convert_equirectangle_to_vertical_cross(bitmap))
+}
+
+pub fn convert_multi_file_to_cubemap_faces(files: Vec<&str>, width: &mut u32, height: &mut u32) -> Result<SpBitMap, String>
+{
+    if files.len() != 6 { return Err(String::from("convert_multi_file_to_cubemap_faces() needs 6 file paths!")); }
+
+    let mut img_data: Vec<u8> = Vec::new();
+    let mut img_width: u32 = 0;
+    let mut img_height: u32 = 0;
+
+    for file in files.iter()
+    {
+        let img_result = image::open(std::path::Path::new(*file));
+        let img: DynamicImage;
+        match img_result
+        {
+            Ok(i) => img = i,
+            Err(e) => 
+            {
+                log_err!(e.to_string());
+                return Err(e.to_string()); 
+            }
+        }
+
+        let pixels = img.to_rgba8().into_raw();
+        img_width = img.width();
+        img_height = img.height();
+
+        if img_data.capacity() != pixels.len() * 6 { img_data.reserve(pixels.len() * 6); }
+        for i in 0..pixels.len()
+        {
+            img_data.push(pixels[i]);
+        }
+    }
+
+    *width = img_width;
+    *height = img_height;
+    let result: SpBitMap = SpBitMap::new(img_width as i32, img_height as i32, Some(6), 4, &img_data);
+
+    Ok(result)
 }

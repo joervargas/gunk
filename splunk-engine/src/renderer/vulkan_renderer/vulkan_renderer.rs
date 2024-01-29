@@ -84,7 +84,7 @@ impl VulkanRenderer
         let vk_end_layer = VkEndLayer::new(&loader.instance, &mut vk_ctx, Some(&depth_img));
 
         let mut layers3d = Vk3dLayerList::new();
-        layers3d.push( Box::new(VkSimple3dLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("textures/statue.jpg"))) );
+        layers3d.push( Box::new(VkSimple3dLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("viking_room/viking_room.obj"), &to_asset_path("viking_room/viking_room.png"))) );
         // layers3d.push(Box::new( VkModelLayer::new(&loader.instance, &mut vk_ctx, &transform_uniforms, &depth_img, &to_asset_path("rubber_duck/scene.gltf").as_path(), &to_asset_path("rubber_duck/textures/Duck_baseColor.png").as_path())) );
 
         let layers2d = Vk2dLayerList::new();

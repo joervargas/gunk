@@ -12,8 +12,9 @@ use gpu_allocator::{vulkan::{
     AllocationScheme
 }, MemoryLocation};
 
-use crate::{vk_check, log_err, check_err, renderer::vulkan_renderer::sp_vulkan::vertex_data::{self, VertexData}};
-    
+use crate::{vk_check, log_err, check_err};
+use crate::renderer::vulkan_renderer::sp_vulkan::vertex_data::{self, VertexData};
+
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{
     sp_begin_single_time_vk_command_buffer, 
     sp_end_single_time_vk_command_buffer
@@ -348,10 +349,9 @@ pub fn sp_create_vk_array_buffer<T>(
 /// - Return
 ///     (SpVkBuffer, SpVkBuffer) <i>// (vertex_buffer, index_buffer)
 /// </pre>
-pub fn sp_create_vk_vertex_buffer_from_file<T>(
+pub fn sp_create_vk_vertex_buffer_from_file(
         vk_ctx: &mut SpVkContext, 
         label: &str, 
-        usage: vk::BufferUsageFlags, 
         file_path: &std::path::Path,
     ) -> (SpVkBuffer, SpVkBuffer)
 {
@@ -366,20 +366,30 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
 
     let mesh = scene.meshes.first().unwrap();
     let mut vertices: Vec<vertex_data::VertexData> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
     for (i, v) in mesh.vertices.iter().enumerate()
     {
         let t = mesh.texture_coords[0].as_ref().unwrap()[i];
-        vertices.push( VertexData::new(glm::vec3(v.x, v.y, v.z), glm::vec2(t.x, 1.0 - t.y)));
+        // vertices.push( VertexData::new(glm::vec3(v.x, v.y, v.z), glm::vec2(t.x, 1.0 - t.y)));
+        vertices.push(
+            VertexData::new(
+                glm::vec3(v.x, v.y, v.z),
+                glm::vec3(0.5, 0.5, 0.5),
+                glm::vec2(t.x, 1.0 - t.y)
+            )
+        );
+    
+        indices.push(indices.len() as u32);
     }
 
-    let mut indices: Vec<u32> = Vec::new();
-    for face in mesh.faces.iter()
-    {
-        for f in face.0.iter()
-        {
-            indices.push(*f);
-        }
-    }
+    // let mut indices: Vec<u32> = Vec::new();
+    // for face in mesh.faces.iter()
+    // {
+    //     for f in face.0.iter()
+    //     {
+    //         indices.push(*f);
+    //     }
+    // }
     drop(scene);
 
     let vert_buffer_size = std::mem::size_of::<VertexData>() * vertices.len();
@@ -425,7 +435,7 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
     let vert_buffer = sp_create_vk_buffer(
         vk_ctx,
         &vert_label, 
-        usage | vk::BufferUsageFlags::TRANSFER_DST,
+        vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
         vert_buffer_size as vk::DeviceSize
     );
@@ -434,7 +444,7 @@ pub fn sp_create_vk_vertex_buffer_from_file<T>(
     let index_buffer = sp_create_vk_buffer(
         vk_ctx,
         &index_label,
-        usage | vk::BufferUsageFlags::TRANSFER_DST,
+        vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
         index_buffer_size as vk::DeviceSize
     );

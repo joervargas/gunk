@@ -52,10 +52,10 @@ impl VkModelLayer
         let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
         let sampler = create_vk_sampler(&vk_ctx.device);
 
-        let (storage_vert, storage_index) = sp_create_vk_vertex_buffer_from_file::<VertexData>(
+        let (storage_vert, storage_index) = sp_create_vk_vertex_buffer_from_file(
             vk_ctx, 
             "Duck", 
-            vk::BufferUsageFlags::STORAGE_BUFFER, 
+            // vk::BufferUsageFlags::STORAGE_BUFFER, 
             model_file
         );
             

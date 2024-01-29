@@ -5,7 +5,7 @@ use ash::{self, vk};
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{SpVkBuffer, sp_destroy_vk_buffer, sp_create_vk_array_buffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{sp_create_vk_array_buffer, sp_create_vk_vertex_buffer_from_file, sp_destroy_vk_buffer, SpVkBuffer};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_destroy_vk_framebuffers, sp_create_vk_color_depth_framebuffers};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, get_vk_buffer_write_desc_set, sp_destroy_vk_descriptor};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
@@ -83,23 +83,23 @@ impl Simple3dVertex
     }
 }
 
-const VERTICES_DATA: [Simple3dVertex; 8] =
-[
-    Simple3dVertex{ pos: [-0.5, -0.5,  0.0 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
-    Simple3dVertex{ pos: [ 0.5, -0.5,  0.0 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
-    Simple3dVertex{ pos: [ 0.5,  0.5,  0.0 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
-    Simple3dVertex{ pos: [-0.5,  0.5,  0.0 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
+// const VERTICES_DATA: [Simple3dVertex; 8] =
+// [
+//     Simple3dVertex{ pos: [-0.5, -0.5,  0.0 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
+//     Simple3dVertex{ pos: [ 0.5, -0.5,  0.0 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
+//     Simple3dVertex{ pos: [ 0.5,  0.5,  0.0 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
+//     Simple3dVertex{ pos: [-0.5,  0.5,  0.0 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
 
-    Simple3dVertex{ pos: [-0.5, -0.5, -0.5 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
-    Simple3dVertex{ pos: [ 0.5, -0.5, -0.5 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
-    Simple3dVertex{ pos: [ 0.5,  0.5, -0.5 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
-    Simple3dVertex{ pos: [-0.5,  0.5, -0.5 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
-];
+//     Simple3dVertex{ pos: [-0.5, -0.5, -0.5 ], color: [1.0, 0.0, 0.0], tex_coord: [0.0, 0.0] },
+//     Simple3dVertex{ pos: [ 0.5, -0.5, -0.5 ], color: [0.0, 1.0, 0.0], tex_coord: [1.0, 0.0] },
+//     Simple3dVertex{ pos: [ 0.5,  0.5, -0.5 ], color: [0.0, 0.0, 1.0], tex_coord: [1.0, 1.0] },
+//     Simple3dVertex{ pos: [-0.5,  0.5, -0.5 ], color: [1.0, 1.0, 1.0], tex_coord: [0.0, 1.0] },
+// ];
 
-const INDICES_DATA: [u32; 12] = [
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-];
+// const INDICES_DATA: [u32; 12] = [
+//     0, 1, 2, 2, 3, 0,
+//     4, 5, 6, 6, 7, 4
+// ];
 
 pub struct VkSimple3dLayer
 {
@@ -108,8 +108,8 @@ pub struct VkSimple3dLayer
     descriptor:         SpVkDescriptor,
     pipeline_layout:    vk::PipelineLayout,
     pipeline:           vk::Pipeline,
-    triangle_verts:     Option<SpVkBuffer>,
-    triangle_indices:   Option<SpVkBuffer>,
+    mesh_verts:     Option<SpVkBuffer>,
+    mesh_indices:   Option<SpVkBuffer>,
     texture:            Option<SpVkImage>,
     sampler:            vk::Sampler
 }
@@ -121,7 +121,7 @@ impl VkSimple3dLayer
             vk_ctx: &mut SpVkContext,
             camera_uniforms: &Vec<SpVkBuffer>,
             depth_img: &SpVkImage,
-            // mesh_file: &std::path::Path,
+            mesh_file: &std::path::Path,
             texture_file: &std::path::Path
         ) -> Self
     {
@@ -163,8 +163,9 @@ impl VkSimple3dLayer
             shader.destroy(&vk_ctx.device);
         }
 
-        let triangle_verts = sp_create_vk_array_buffer::<Simple3dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
-        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
+        // let triangle_verts = sp_create_vk_array_buffer::<Simple3dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
+        // let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
+        let (mesh_verts, mesh_indices) = sp_create_vk_vertex_buffer_from_file(vk_ctx, "mesh", mesh_file);
 
         Self
         {
@@ -173,8 +174,8 @@ impl VkSimple3dLayer
             descriptor,
             pipeline_layout,
             pipeline,
-            triangle_verts: Some(triangle_verts),
-            triangle_indices: Some(triangle_indices),
+            mesh_verts: Some(mesh_verts),
+            mesh_indices: Some(mesh_indices),
             texture: Some(texture),
             sampler,
         }
@@ -352,14 +353,14 @@ impl VkSimple3dLayer
     fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
-            vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.triangle_verts.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
-            vk_ctx.device.cmd_bind_index_buffer(*cmd_buffer, self.triangle_indices.as_ref().unwrap().handle, 0, vk::IndexType::UINT32);
+            vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.mesh_verts.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
+            vk_ctx.device.cmd_bind_index_buffer(*cmd_buffer, self.mesh_indices.as_ref().unwrap().handle, 0, vk::IndexType::UINT32);
 
             let desc_set = [self.descriptor.sets[vk_ctx.frame_sync.get_current_frame_index()]];
             vk_ctx.device.cmd_bind_descriptor_sets(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline_layout, 0, &desc_set, &[]);
 
             // vk_ctx.device.cmd_draw(*cmd_buffer, VERTICES_DATA.len() as u32, 1, 0, 0);
-            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, INDICES_DATA.len() as u32, 1, 0, 0, 0);
+            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, self.mesh_indices.as_ref().unwrap().size as u32 / std::mem::size_of::<u32>() as u32, 1, 0, 0, 0);
         }
     }
 
@@ -376,8 +377,8 @@ impl SpVkLayerDraw for VkSimple3dLayer
 
     fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
     {
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
+        sp_destroy_vk_buffer(vk_ctx, self.mesh_verts.take().unwrap());
+        sp_destroy_vk_buffer(vk_ctx, self.mesh_indices.take().unwrap());
         sp_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
         unsafe { vk_ctx.device.destroy_sampler(self.sampler, None); }
 
