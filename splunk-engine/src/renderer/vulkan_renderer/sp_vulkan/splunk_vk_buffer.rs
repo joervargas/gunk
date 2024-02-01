@@ -370,6 +370,8 @@ pub fn sp_create_vk_vertex_buffer_from_file(
     for (i, v) in mesh.vertices.iter().enumerate()
     {
         let t = mesh.texture_coords[0].as_ref().unwrap()[i];
+        // let n = mesh.normals[i];
+        // let c = mesh.colors[0].as_ref().unwrap()[i];
         // vertices.push( VertexData::new(glm::vec3(v.x, v.y, v.z), glm::vec2(t.x, 1.0 - t.y)));
         vertices.push(
             VertexData::new(
@@ -382,7 +384,6 @@ pub fn sp_create_vk_vertex_buffer_from_file(
         indices.push(indices.len() as u32);
     }
 
-    // let mut indices: Vec<u32> = Vec::new();
     // for face in mesh.faces.iter()
     // {
     //     for f in face.0.iter()

@@ -41,7 +41,7 @@ pub struct VulkanRenderer
     pub layers3d:           Vk3dLayerList,
     pub layers2d:           Vk2dLayerList,
     has_resized:            bool,
-    model_matrix:           glm::Mat4,
+    // model_matrix:           glm::Mat4,
 }
 
 impl VulkanRenderer
@@ -90,7 +90,7 @@ impl VulkanRenderer
         let layers2d = Vk2dLayerList::new();
         // layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/statue.jpg"))) );
 
-        let model_matrix = glm::Mat4::identity();
+        // let model_matrix = glm::Mat4::identity();
 
         Self
         {
@@ -104,7 +104,7 @@ impl VulkanRenderer
             layers3d,
             layers2d,
             has_resized: false,
-            model_matrix
+            // model_matrix
         }
     }
 
@@ -193,19 +193,18 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
     {
         let _inner_size = window.inner_size();
 
-        self.model_matrix = glm::rotate(&self.model_matrix, glm::pi::<f32>() * delta_time, &glm::vec3(0.0, 0.0, 1.0));
-        let m = self.model_matrix.as_slice()[..].try_into().unwrap();
+        // self.model_matrix = glm::rotate(&self.model_matrix, glm::pi::<f32>() * delta_time, &glm::vec3(0.0, 0.0, 1.0));
+        // let m = self.model_matrix.as_slice()[..].try_into().unwrap();
         let v = self.camera.view.get_matrix().as_slice()[..].try_into().unwrap();
         let p = self.camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
 
-        let camera_uniform_data = SpCameraUniformData{ model: m, view: v, proj: p };
-        // let data = &[camera_uniform_data].as_slice()[..].try_into().unwrap();
-        // map_vk_buffer_data(&self.vk_ctx.device, &self.transform_uniforms[current_img as usize].allocation, data, std::mem::size_of::<SpCameraUniformData>() as vk::DeviceSize);
+        let camera_uniform_data = SpCameraUniformData{ view: v, proj: p };
+
 
         let current_frame = self.vk_ctx.frame_sync.get_current_frame_index();
         map_vk_allocation_data::<SpCameraUniformData>(&self.transform_uniforms[current_frame].allocation, &[camera_uniform_data], 1);
 
-        self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], self.depth_img.as_ref().unwrap());
+        self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], delta_time);
         self.layers2d.update(&self.vk_ctx);
     }
 

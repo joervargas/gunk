@@ -55,7 +55,7 @@ pub struct SpCamera
 #[repr(C)]
 pub struct SpCameraUniformData
 {
-    pub model:   [f32; 16],
+    // pub model:   [f32; 16],
     pub view:    [f32; 16],
     pub proj:    [f32; 16]
 }
@@ -66,15 +66,15 @@ impl SpCameraUniformData
     {
         Self
         {
-            model: glm::Mat4::identity().as_slice()[..].try_into().unwrap(),
+            // model: glm::Mat4::identity().as_slice()[..].try_into().unwrap(),
             view: glm::Mat4::identity().as_slice()[..].try_into().unwrap(),
             proj: glm::Mat4::identity().as_slice()[..].try_into().unwrap() 
         }
     }
 
-    pub fn update(&mut self, model: glm::Mat4, camera: &SpCamera)
+    pub fn update(&mut self, camera: &SpCamera)
     {
-        self.model = model.as_slice()[..].try_into().unwrap();
+        // self.model = model.as_slice()[..].try_into().unwrap();
         self.view = camera.view.get_matrix().as_slice()[..].try_into().unwrap();
         self.proj = camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
     }

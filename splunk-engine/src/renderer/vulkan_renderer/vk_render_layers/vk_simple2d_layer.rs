@@ -388,7 +388,7 @@ impl SpVkLayerDraw for VkSimple2dLayer
 
 impl SpVk2dLayerUpdate for VkSimple2dLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext)
+    fn update(&mut self, _vk_ctx: &SpVkContext)
     {
     }
 

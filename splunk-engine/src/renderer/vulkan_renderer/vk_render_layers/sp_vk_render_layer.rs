@@ -107,7 +107,7 @@ pub trait SpVkLayerDraw
 
 pub trait SpVk3dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage);
+    fn update(&mut self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, delta_time: f32);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: &SpVkImage);
 }
@@ -117,7 +117,7 @@ impl<T: SpVkLayerDraw + SpVk3dLayerUpdate> VkDrawLayer3d for T{}
 
 pub trait SpVk2dLayerUpdate
 {
-    fn update(&self, vk_ctx: &SpVkContext);
+    fn update(&mut self, vk_ctx: &SpVkContext);
 
     // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext);
 }
@@ -203,11 +203,11 @@ impl SpVkLayerDraw for Vk3dLayerList
 
 impl SpVk3dLayerUpdate for Vk3dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, depth_img: &SpVkImage)
+    fn update(&mut self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, delta_time: f32)
     {
-        for layer in self.list.iter()
+        for layer in self.list.iter_mut()
         {
-            layer.update(vk_ctx, transform_uniform, depth_img);
+            layer.update(vk_ctx, transform_uniform, delta_time);
         }
     }
 
@@ -292,9 +292,9 @@ impl SpVkLayerDraw for Vk2dLayerList
 
 impl SpVk2dLayerUpdate for Vk2dLayerList
 {
-    fn update(&self, vk_ctx: &SpVkContext)
+    fn update(&mut self, vk_ctx: &SpVkContext)
     {
-        for layer in self.list.iter()
+        for layer in self.list.iter_mut()
         {
             layer.update(vk_ctx);
         }

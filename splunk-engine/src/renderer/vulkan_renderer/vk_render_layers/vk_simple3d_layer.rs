@@ -2,10 +2,12 @@ use std::ffi::CString;
 
 use ash::{self, vk};
 
+
+use gpu_allocator::MemoryLocation;
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{sp_create_vk_array_buffer, sp_create_vk_vertex_buffer_from_file, sp_destroy_vk_buffer, SpVkBuffer};
+use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{map_vk_allocation_data, sp_create_vk_buffer, sp_create_vk_vertex_buffer_from_file, sp_destroy_vk_buffer, SpVkBuffer};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_destroy_vk_framebuffers, sp_create_vk_color_depth_framebuffers};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, get_vk_buffer_write_desc_set, sp_destroy_vk_descriptor};
 use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
@@ -108,10 +110,12 @@ pub struct VkSimple3dLayer
     descriptor:         SpVkDescriptor,
     pipeline_layout:    vk::PipelineLayout,
     pipeline:           vk::Pipeline,
-    mesh_verts:     Option<SpVkBuffer>,
-    mesh_indices:   Option<SpVkBuffer>,
+    mesh_verts:         Option<SpVkBuffer>,
+    mesh_indices:       Option<SpVkBuffer>,
     texture:            Option<SpVkImage>,
-    sampler:            vk::Sampler
+    sampler:            vk::Sampler,
+    model_space:        glm::Mat4,
+    model_space_buffer: Option<SpVkBuffer>,
 }
 
 impl VkSimple3dLayer
@@ -140,7 +144,15 @@ impl VkSimple3dLayer
         };
         let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         
-        let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler);
+        let model_space = glm::Mat4::identity();
+        let model_space_buffer = Some(sp_create_vk_buffer(
+            vk_ctx, "Simple3d_model_space", 
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+            MemoryLocation::CpuToGpu, 
+            std::mem::size_of::<glm::Mat4>() as vk::DeviceSize
+        ));
+
+        let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler, model_space_buffer.as_ref().unwrap());
 
         let framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
 
@@ -178,6 +190,8 @@ impl VkSimple3dLayer
             mesh_indices: Some(mesh_indices),
             texture: Some(texture),
             sampler,
+            model_space,
+            model_space_buffer
         }
     }
 
@@ -185,14 +199,16 @@ impl VkSimple3dLayer
             vk_ctx: &SpVkContext,
             camera_uniforms: &Vec<SpVkBuffer>,
             texture: &SpVkImage,
-            sampler: &vk::Sampler
+            sampler: &vk::Sampler,
+            model_space_buffer: &SpVkBuffer
         ) -> SpVkDescriptor
     {
-        let pool = sp_create_vk_desc_pool(vk_ctx, 1, 0, 1);
+        let pool = sp_create_vk_desc_pool(vk_ctx, 2, 0, 1);
 
         let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
             get_vk_desc_set_layout_binding(0, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
-            get_vk_desc_set_layout_binding(1, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
+            get_vk_desc_set_layout_binding(1, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
+            get_vk_desc_set_layout_binding(2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
         ];
 
         let layout_info = vk::DescriptorSetLayoutCreateInfo
@@ -224,11 +240,13 @@ impl VkSimple3dLayer
         for i in 0..vk_ctx.frame_sync.get_num_frames_in_flight()
         {
             let buffer_info1 = vk::DescriptorBufferInfo{ buffer: camera_uniforms[i].handle, offset: 0, range: camera_uniforms[i].size };
+            let buffer_info2 = vk::DescriptorBufferInfo{ buffer: model_space_buffer.handle, offset: 0, range: model_space_buffer.size };
             let image_info1 = vk::DescriptorImageInfo{ sampler: *sampler, image_view: texture.view, image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL};
 
             let desc_writes: Vec<vk::WriteDescriptorSet> = vec![
                 get_vk_buffer_write_desc_set(&sets[i], &[buffer_info1], 0, vk::DescriptorType::UNIFORM_BUFFER),
-                get_vk_image_write_desc_set(&sets[i], &[image_info1], 1) 
+                get_vk_buffer_write_desc_set(&sets[i], &[buffer_info2], 1, vk::DescriptorType::UNIFORM_BUFFER),
+                get_vk_image_write_desc_set(&sets[i], &[image_info1], 2) 
             ];
 
             unsafe {
@@ -379,6 +397,7 @@ impl SpVkLayerDraw for VkSimple3dLayer
     {
         sp_destroy_vk_buffer(vk_ctx, self.mesh_verts.take().unwrap());
         sp_destroy_vk_buffer(vk_ctx, self.mesh_indices.take().unwrap());
+        sp_destroy_vk_buffer(vk_ctx, self.model_space_buffer.take().unwrap());
         sp_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
         unsafe { vk_ctx.device.destroy_sampler(self.sampler, None); }
 
@@ -406,9 +425,13 @@ impl SpVkLayerDraw for VkSimple3dLayer
 
 impl SpVk3dLayerUpdate for VkSimple3dLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage)
+    fn update(&mut self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, delta_time: f32)
     {
-        // update 
+        // update
+        self.model_space = glm::rotate(&self.model_space, glm::pi::<f32>() * delta_time, &glm::vec3(0.0, 0.0, 1.0));
+        // let m = self.model_space.as_slice()[..].try_into().unwrap();
+
+        map_vk_allocation_data::<glm::Mat4>(&self.model_space_buffer.as_ref().unwrap().allocation, &[self.model_space], 1);
     }
 
 }

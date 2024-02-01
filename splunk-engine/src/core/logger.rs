@@ -33,7 +33,7 @@ macro_rules! log_info {
     {
         let label: &str = "Info: ";
         let data = format!("{} ", $x );
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
         
         $crate::logger!(
             // label.blue().bold(),
@@ -52,7 +52,7 @@ macro_rules! log_info {
 
         let label: &str = "Info: ";
         $( t.push_str(format!("{} ", $x ).as_str()); )*
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
         
         $crate::logger!(
             // label.blue().bold(),
@@ -76,7 +76,7 @@ macro_rules! log_warn {
 
         let label: &str = "Warning: ";
         let data = format!("{} ", $x );
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
         
         $crate::logger!(
             // label.yellow().bold(),
@@ -95,7 +95,7 @@ macro_rules! log_warn {
 
         let label: &str = "Warning: ";
         $( t.push_str(format!("{} ", $x ).as_str()); )*
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
         
         $crate::logger!(
             // label.yellow().bold(), 
@@ -119,7 +119,7 @@ macro_rules! log_err {
         
         let label = "Error: ";
         let data = format!("{} ", $x );
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
 
         $crate::logger!(
             // label.red().bold(), 
@@ -138,7 +138,7 @@ macro_rules! log_err {
 
         let label: &str = "Error: ";
         $( t.push_str(format!("{} ", $x ).as_str()); )*
-        let meta_data = format!("\n\tfile: {} line: {}", file!(), line!() );
+        let meta_data = format!("\n\tfile: {}({}) line: {}", file!(), line!(), line!() );
 
         $crate::logger!(
             // label.red().bold(), 

@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use ash::vk;
+use gpu_allocator::MemoryLocation;
 use nalgebra_glm as glm;
 use memoffset;
 
@@ -15,7 +16,7 @@ use crate::renderer::{
             get_vk_desc_set_layout_binding, get_vk_buffer_write_desc_set, 
             get_vk_image_write_desc_set, sp_destroy_vk_descriptor
         }, 
-        splunk_vk_buffer::{SpVkBuffer, sp_create_vk_array_buffer, sp_destroy_vk_buffer},
+        splunk_vk_buffer::{map_vk_allocation_data, sp_create_vk_array_buffer, sp_create_vk_buffer, sp_destroy_vk_buffer, SpVkBuffer},
         splunk_vk_img::{
             SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img
         }, 
@@ -37,20 +38,19 @@ use crate::{ vk_check, log_info, log_err };
 
 use super::sp_vk_render_layer::{ SpVkLayerDraw, SpVk3dLayerUpdate };
 
+#[derive(Clone)]
 pub struct SkyBoxVertex
 {
     pub pos:        [f32; 3],
-    pub tex_coord:  [f32; 2]
 }
 
 impl SkyBoxVertex
 {
-    pub fn new(pos: glm::Vec3, tex_coords: glm::Vec2) -> Self
+    pub fn new(pos: glm::Vec3) -> Self
     {
         Self
         {
-            pos:        [pos.x, pos.y, pos.z],
-            tex_coord:  [tex_coords.x, tex_coords.y]
+            pos: [pos.x, pos.y, pos.z],
         }
     }
 
@@ -65,7 +65,7 @@ impl SkyBoxVertex
         ]
     }
 
-    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 2]
+    fn get_attribute_descriptions() -> [vk::VertexInputAttributeDescription; 1]
     {
         [
             vk::VertexInputAttributeDescription{
@@ -73,32 +73,50 @@ impl SkyBoxVertex
                 location: 0,
                 format: vk::Format::R32G32B32_SFLOAT,
                 offset: memoffset::offset_of!(Self, pos) as u32
-            },
-            vk::VertexInputAttributeDescription{
-                binding: 0,
-                location: 1,
-                format: vk::Format::R32G32_SFLOAT,
-                offset: memoffset::offset_of!(Self, tex_coord) as u32
             }
         ]
     }
 }
 
-// const SKYBOX_VERTICES_DATA: [SkyBoxVertex; 8] =
-// [
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-//     SkyBoxVertex::new( glm::Vec3(), glm::Vec2() ),
-// ];
+const SKYBOX_VERTICES_DATA: [SkyBoxVertex; 8] =
+[
+    SkyBoxVertex{ pos: [-1.0, -1.0,  1.0] },
+    SkyBoxVertex{ pos: [ 1.0, -1.0,  1.0] },
+    SkyBoxVertex{ pos: [ 1.0,  1.0,  1.0] },
+    SkyBoxVertex{ pos: [-1.0,  1.0,  1.0] },
 
-// const SKYBOX_INDICES_DATA: [u32; 1] = [
-//     0,
-// ];
+    SkyBoxVertex{ pos: [-1.0, -1.0, -1.0] },
+    SkyBoxVertex{ pos: [ 1.0, -1.0, -1.0] },
+    SkyBoxVertex{ pos: [ 1.0,  1.0, -1.0] },
+    SkyBoxVertex{ pos: [-1.0,  1.0, -1.0] },
+];
+
+const SKYBOX_INDICES_DATA: [u32; 36] = [
+    // front
+    0, 1, 2, 2, 3, 0,
+    // right
+    1, 5, 6, 6, 2, 1,
+    // back
+    7, 6, 5, 5, 4, 7,
+    // left
+    4, 0, 3, 3, 7, 4,
+    // bottom
+    4, 5, 1, 1, 0, 4,
+    // top
+    3, 2, 6, 6, 7, 3
+];
+
+fn get_z_up_matrix() -> glm::Mat4
+{
+    let s = 90.0_f32.to_radians().sin();
+    let c = 90.0_f32.to_radians().cos();
+    glm::Mat4::new(
+        1.0, 0.0, 0.0,  0.0,
+        0.0,  c,   s,    0.0,
+        0.0, -s,   c,   0.0,
+        0.0, 0.0, 0.0, 0.0
+    )
+}
 
 pub struct VkSkyBoxLayer
 {
@@ -110,7 +128,9 @@ pub struct VkSkyBoxLayer
     triangle_verts:     Option<SpVkBuffer>,
     triangle_indices:   Option<SpVkBuffer>,
     texture:            Option<SpVkImage>,
-    sampler:            vk::Sampler
+    sampler:            vk::Sampler,
+    model_space:        glm::Mat4,
+    model_space_buffer: Option<SpVkBuffer>,
 }
 
 impl VkSkyBoxLayer
@@ -137,7 +157,15 @@ impl VkSkyBoxLayer
         };
         let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         
-        let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler);
+        let model_space = get_z_up_matrix();
+        let model_space_buffer = Some(sp_create_vk_buffer(
+            vk_ctx, "Simple_SkyBox_model_space", 
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+            MemoryLocation::CpuToGpu, 
+            std::mem::size_of::<glm::Mat4>() as vk::DeviceSize
+        ));
+
+        let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler, model_space_buffer.as_ref().unwrap());
 
         let framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
 
@@ -160,8 +188,8 @@ impl VkSkyBoxLayer
             shader.destroy(&vk_ctx.device);
         }
 
-        let triangle_verts = sp_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &vec![]);
-        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &vec![]);
+        let triangle_verts = sp_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Sky Verts", vk::BufferUsageFlags::VERTEX_BUFFER, &SKYBOX_VERTICES_DATA.to_vec());
+        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Sky Indices", vk::BufferUsageFlags::INDEX_BUFFER, &SKYBOX_INDICES_DATA.to_vec());
 
         Self
         {
@@ -174,6 +202,8 @@ impl VkSkyBoxLayer
             triangle_indices: Some(triangle_indices),
             texture: Some(texture),
             sampler,
+            model_space,
+            model_space_buffer
         }
     }
 
@@ -181,14 +211,16 @@ impl VkSkyBoxLayer
             vk_ctx: &SpVkContext,
             camera_uniforms: &Vec<SpVkBuffer>,
             texture: &SpVkImage,
-            sampler: &vk::Sampler
+            sampler: &vk::Sampler,
+            model_space_buffer: &SpVkBuffer
         ) -> SpVkDescriptor
     {
-        let pool = sp_create_vk_desc_pool(vk_ctx, 1, 0, 1);
+        let pool = sp_create_vk_desc_pool(vk_ctx, 2, 0, 1);
 
         let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
             get_vk_desc_set_layout_binding(0, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
-            get_vk_desc_set_layout_binding(1, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
+            get_vk_desc_set_layout_binding(1, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
+            get_vk_desc_set_layout_binding(2, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
         ];
 
         let layout_info = vk::DescriptorSetLayoutCreateInfo
@@ -220,11 +252,13 @@ impl VkSkyBoxLayer
         for i in 0..vk_ctx.frame_sync.get_num_frames_in_flight()
         {
             let buffer_info1 = vk::DescriptorBufferInfo{ buffer: camera_uniforms[i].handle, offset: 0, range: camera_uniforms[i].size };
+            let buffer_info2 = vk::DescriptorBufferInfo{ buffer: model_space_buffer.handle, offset: 0, range: model_space_buffer.size };
             let image_info1 = vk::DescriptorImageInfo{ sampler: *sampler, image_view: texture.view, image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL};
 
             let desc_writes: Vec<vk::WriteDescriptorSet> = vec![
                 get_vk_buffer_write_desc_set(&sets[i], &[buffer_info1], 0, vk::DescriptorType::UNIFORM_BUFFER),
-                get_vk_image_write_desc_set(&sets[i], &[image_info1], 1) 
+                get_vk_buffer_write_desc_set(&sets[i], &[buffer_info2], 1, vk::DescriptorType::UNIFORM_BUFFER),
+                get_vk_image_write_desc_set(&sets[i], &[image_info1], 2) 
             ];
 
             unsafe {
@@ -262,7 +296,7 @@ impl VkSkyBoxLayer
         vertex_input_info.p_vertex_binding_descriptions = SkyBoxVertex::get_binding_descriptions().as_ptr();
         vertex_input_info.vertex_attribute_description_count = SkyBoxVertex::get_attribute_descriptions().len() as u32;
         vertex_input_info.p_vertex_attribute_descriptions = SkyBoxVertex::get_attribute_descriptions().as_ptr();
-        
+
         let assembly_info = create_vk_pipeline_info_assembly(vk::PrimitiveTopology::TRIANGLE_LIST, vk::FALSE);
 
         let mut custom_width = 0;
@@ -402,8 +436,9 @@ impl SpVkLayerDraw for VkSkyBoxLayer
 
 impl SpVk3dLayerUpdate for VkSkyBoxLayer
 {
-    fn update(&self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _depth_img: &SpVkImage)
+    fn update(&mut self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _delta_time: f32)
     {
-        // update 
+        // update
+        map_vk_allocation_data::<glm::Mat4>(&self.model_space_buffer.as_ref().unwrap().allocation, &[self.model_space], 1);
     }
 }
