@@ -1,0 +1,31 @@
+[package]
+name = "gunk-engine"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+colored = "2.0"
+cfg-if = "1.0"
+memoffset = "0.9"
+bitflags = "2.4"
+winit = { version = "0.29", features = ["rwh_04"] }
+ash = "0.37"
+ash-window = "0.11"
+raw-window-handle = "0.6"
+nalgebra = "0.32"
+nalgebra-glm = "0.18"
+rapier3d = "0.18"
+rapier2d = "0.18"
+image = "0.24"
+gpu-allocator = "0.25"
+shaderc = "0.8.2"
+gltf = "1.4"
+wavefront_obj = "10.0"
+
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.3"
+glob = "0.3"
