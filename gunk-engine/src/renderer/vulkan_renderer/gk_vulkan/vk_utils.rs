@@ -4,7 +4,7 @@ use ash::{
     extensions::khr
 };
 
-use super::splunk_vk_loader::SpVkSurface;
+use super::gunk_vk_loader::GkVkSurface;
 use crate::{ vk_check, log_info, log_err };
 
 use std::ffi::CString;
@@ -15,12 +15,12 @@ use std::ffi::CString;
 /// <pre>
 /// - Params
 ///     instance:           &ash::Instance
-///     surface:            &SpVkSurface
+///     surface:            &GkVkSurface
 ///     physical_device:    vk::PhysicalDevice
 /// - Return
 ///     bool
 /// </pre>
-pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &SpVkSurface, physical_device: vk::PhysicalDevice) -> bool
+pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &GkVkSurface, physical_device: vk::PhysicalDevice) -> bool
 {
 
     let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
@@ -54,11 +54,11 @@ pub fn is_vk_physical_device_suitable(instance: &ash::Instance, surface: &SpVkSu
 /// <pre>
 /// - Params
 ///     instance:       &ash::Instance
-///     surface:        &SpVkSurface
+///     surface:        &GkVkSurface
 /// - Return
 ///     vk::PhsyicalDevice
 /// </pre>
-pub fn find_suitable_vk_physical_device(instance: &ash::Instance, surface: &SpVkSurface) -> vk::PhysicalDevice
+pub fn find_suitable_vk_physical_device(instance: &ash::Instance, surface: &GkVkSurface) -> vk::PhysicalDevice
 {
     log_info!("Finding suitable VkPhysicalDevice...");
 
@@ -215,11 +215,11 @@ pub struct VkSwapchainDetails
 /// <pre>
 /// - Params
 ///     physical_device:    &vk::PhysicalDevice
-///     surface:            &SpVkSurface
+///     surface:            &GkVkSurface
 /// - Return
 ///     VkSwapchainDetails
 /// </pre>
-pub fn query_vk_swapchain_details(physical_device: &vk::PhysicalDevice, surface: &SpVkSurface) -> VkSwapchainDetails
+pub fn query_vk_swapchain_details(physical_device: &vk::PhysicalDevice, surface: &GkVkSurface) -> VkSwapchainDetails
 {
     let capabilities = unsafe
     {
@@ -303,7 +303,7 @@ pub fn choose_vk_swap_image_count(capabilities: vk::SurfaceCapabilitiesKHR) -> u
 /// - Params
 ///     instance:           &ash::Instance
 ///     device:             &ash::Device
-///     surface:            &SpVkSurface
+///     surface:            &GkVkSurface
 ///     queue_indices:      &Vec<u32>
 ///     capabilities:       vk::SurfaceCapabilitiesKHR
 ///     surface_format:     &vk::SurfaceFormatKHR
@@ -315,7 +315,7 @@ pub fn choose_vk_swap_image_count(capabilities: vk::SurfaceCapabilitiesKHR) -> u
 pub fn create_vk_swapchain(
         instance: &ash::Instance,
         device: &ash::Device,
-        surface: &SpVkSurface, 
+        surface: &GkVkSurface, 
         queue_indices: &Vec<u32>,
         capabilities: vk::SurfaceCapabilitiesKHR,
         surface_format: &vk::SurfaceFormatKHR,

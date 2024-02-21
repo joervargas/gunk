@@ -1,6 +1,6 @@
 use ash::{self, vk};
 
-use super::splunk_vk_context::SpVkContext;
+use super::gunk_vk_context::GkVkContext;
 
 use crate::vk_check;
 
@@ -94,8 +94,8 @@ pub fn get_vk_image_write_desc_set(
     }
 }
 
-pub fn sp_create_vk_desc_pool(
-    vk_ctx: &SpVkContext, 
+pub fn gk_create_vk_desc_pool(
+    vk_ctx: &GkVkContext, 
     uniform_count: u32, 
     storage_count: u32, 
     img_sample_count: u32
@@ -152,21 +152,21 @@ pub fn sp_create_vk_desc_pool(
     }
 }
 
-/// ### SpVkDescriptor struct
+/// ### GkVkDescriptor struct
 /// <pre>
 /// - Members
 ///     layout:     Vec&lt;vk::DescriptorSetLayout&gt;
 ///     pool:       vk::DescriptorPool
 ///     sets:       Vec&lt;vk::DescriptorSet&gt;
 /// </pre>
-pub struct SpVkDescriptor
+pub struct GkVkDescriptor
 {
     pub layouts:    Vec<vk::DescriptorSetLayout>,
     pub pool:       vk::DescriptorPool,
     pub sets:       Vec<vk::DescriptorSet>
 }
 
-pub fn sp_destroy_vk_descriptor(vk_ctx: &SpVkContext, descriptor: &SpVkDescriptor)
+pub fn gk_destroy_vk_descriptor(vk_ctx: &GkVkContext, descriptor: &GkVkDescriptor)
 {
     unsafe{
         vk_ctx.device.destroy_descriptor_set_layout(*descriptor.layouts.first().unwrap(), None);

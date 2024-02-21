@@ -7,7 +7,7 @@ use nalgebra_glm as glm;
 use crate::log_err;
 
 use super::gk_bitmap::{
-    GkBitMap, EBitMapType
+    GkBitMap, EBitMapType,
     EBitMapData, EBitMapDataMutPtr, EBitMapDataPtr, 
 };
 // use crate::renderer::bitmap::BitMapScalar;

@@ -1,22 +1,22 @@
 use ash::{self, vk};
 
-use crate::renderer::vulkan_renderer::sp_vulkan::{
-    splunk_vk_context::SpVkContext, 
-    splunk_vk_buffer::SpVkBuffer, 
-    splunk_vk_img::SpVkImage,
-    splunk_vk_render_pass::SpVkRenderPass};
+use crate::renderer::vulkan_renderer::gk_vulkan::{
+    gunk_vk_context::GkVkContext, 
+    gunk_vk_buffer::GkVkBuffer, 
+    gunk_vk_img::GkVkImage,
+    gunk_vk_render_pass::GkVkRenderPass};
 
-pub trait SpVkLayerDraw
+pub trait GkVkLayerDraw
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize);
+    fn draw_frame(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize);
 
-    fn destroy(&mut self, vk_ctx: &mut SpVkContext);
+    fn destroy(&mut self, vk_ctx: &mut GkVkContext);
 
     fn cleanup_framebuffers(&mut self, device: &ash::Device);
 
-    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: Option<&SpVkImage>);
+    fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, depth_img: Option<&GkVkImage>);
 
-    fn begin_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, renderpass: &SpVkRenderPass, pipeline: vk::Pipeline, framebuffer: vk::Framebuffer)
+    fn begin_renderpass(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, renderpass: &GkVkRenderPass, pipeline: vk::Pipeline, framebuffer: vk::Framebuffer)
     {
         let mut clear_values: Vec<vk::ClearValue> = Vec::new();
         if renderpass.info.b_clear_color
@@ -98,32 +98,32 @@ pub trait SpVkLayerDraw
         }
     }
 
-    fn end_renderpass(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
+    fn end_renderpass(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{ vk_ctx.device.cmd_end_render_pass(*cmd_buffer); }
     }
 
 }
 
-pub trait SpVk3dLayerUpdate
+pub trait GkVk3dLayerUpdate
 {
-    fn update(&mut self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, delta_time: f32);
+    fn update(&mut self, vk_ctx: &GkVkContext, transform_uniform: &GkVkBuffer, delta_time: f32);
 
-    // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: &SpVkImage);
+    // fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, depth_img: &GkVkImage);
 }
 
-pub trait VkDrawLayer3d: SpVkLayerDraw + SpVk3dLayerUpdate{}
-impl<T: SpVkLayerDraw + SpVk3dLayerUpdate> VkDrawLayer3d for T{}
+pub trait VkDrawLayer3d: GkVkLayerDraw + GkVk3dLayerUpdate{}
+impl<T: GkVkLayerDraw + GkVk3dLayerUpdate> VkDrawLayer3d for T{}
 
-pub trait SpVk2dLayerUpdate
+pub trait GkVk2dLayerUpdate
 {
-    fn update(&mut self, vk_ctx: &SpVkContext);
+    fn update(&mut self, vk_ctx: &GkVkContext);
 
-    // fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext);
+    // fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext);
 }
 
-pub trait VkDrawLayer2d: SpVkLayerDraw + SpVk2dLayerUpdate{}
-impl<T: SpVkLayerDraw + SpVk2dLayerUpdate> VkDrawLayer2d for T{}
+pub trait VkDrawLayer2d: GkVkLayerDraw + GkVk2dLayerUpdate{}
+impl<T: GkVkLayerDraw + GkVk2dLayerUpdate> VkDrawLayer2d for T{}
 
 pub struct Vk3dLayerList
 {
@@ -166,9 +166,9 @@ impl std::ops::IndexMut<usize> for Vk3dLayerList
     }
 }
 
-impl SpVkLayerDraw for Vk3dLayerList
+impl GkVkLayerDraw for Vk3dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
+    fn draw_frame(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
     {
         for layer in self.list.iter()
         {
@@ -176,7 +176,7 @@ impl SpVkLayerDraw for Vk3dLayerList
         }
     }
 
-    fn destroy(&mut self, vk_ctx: &mut SpVkContext)
+    fn destroy(&mut self, vk_ctx: &mut GkVkContext)
     {
         for layer in self.list.iter_mut()
         {
@@ -192,7 +192,7 @@ impl SpVkLayerDraw for Vk3dLayerList
         }
     }
 
-    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: Option<&SpVkImage>)
+    fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, depth_img: Option<&GkVkImage>)
     {
         for layer in self.list.iter_mut()
         {
@@ -201,9 +201,9 @@ impl SpVkLayerDraw for Vk3dLayerList
     }
 }
 
-impl SpVk3dLayerUpdate for Vk3dLayerList
+impl GkVk3dLayerUpdate for Vk3dLayerList
 {
-    fn update(&mut self, vk_ctx: &SpVkContext, transform_uniform: &SpVkBuffer, delta_time: f32)
+    fn update(&mut self, vk_ctx: &GkVkContext, transform_uniform: &GkVkBuffer, delta_time: f32)
     {
         for layer in self.list.iter_mut()
         {
@@ -255,9 +255,9 @@ impl std::ops::IndexMut<usize> for Vk2dLayerList
     }
 }
 
-impl SpVkLayerDraw for Vk2dLayerList
+impl GkVkLayerDraw for Vk2dLayerList
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
+    fn draw_frame(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, current_img: usize)
     {
         for layer in self.list.iter()
         {
@@ -265,7 +265,7 @@ impl SpVkLayerDraw for Vk2dLayerList
         }
     }
 
-    fn destroy(&mut self, vk_ctx: &mut SpVkContext)
+    fn destroy(&mut self, vk_ctx: &mut GkVkContext)
     {
         for layer in self.list.iter_mut()
         {
@@ -281,7 +281,7 @@ impl SpVkLayerDraw for Vk2dLayerList
         }
     }
 
-    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, _depth_img: Option<&SpVkImage>)
+    fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, _depth_img: Option<&GkVkImage>)
     {
         for layer in self.list.iter_mut()
         {
@@ -290,9 +290,9 @@ impl SpVkLayerDraw for Vk2dLayerList
     }
 }
 
-impl SpVk2dLayerUpdate for Vk2dLayerList
+impl GkVk2dLayerUpdate for Vk2dLayerList
 {
-    fn update(&mut self, vk_ctx: &SpVkContext)
+    fn update(&mut self, vk_ctx: &GkVkContext)
     {
         for layer in self.list.iter_mut()
         {

@@ -5,26 +5,26 @@ use ash::{self, vk};
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::{SpVkBuffer, sp_destroy_vk_buffer, sp_create_vk_array_buffer};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_context::{sp_create_vk_color_only_framebuffers, sp_destroy_vk_framebuffers};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_descriptor::{SpVkDescriptor, sp_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, sp_destroy_vk_descriptor};
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_img::{SpVkImage, sp_create_vk_image, create_vk_sampler, sp_destroy_vk_img};
-use crate::renderer::vulkan_renderer::sp_vulkan::vk_utils::{
+use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_buffer::{GkVkBuffer, gk_destroy_vk_buffer, gk_create_vk_array_buffer};
+use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_context::{gk_create_vk_color_only_framebuffers, gk_destroy_vk_framebuffers};
+use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_descriptor::{GkVkDescriptor, gk_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, gk_destroy_vk_descriptor};
+use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_img::{GkVkImage, gk_create_vk_image, create_vk_sampler, gk_destroy_vk_img};
+use crate::renderer::vulkan_renderer::gk_vulkan::vk_utils::{
     create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_assembly,
     create_vk_pipeline_info_dynamic_states, create_vk_pipeline_info_viewport, 
     create_vk_pipeline_info_rasterization, create_vk_pipeline_info_multisample, 
     create_vk_pipeline_info_color_blend_attachment, create_vk_pipeline_info_color_blend,
     create_vk_pipeline_info_tessellation, create_vk_pipeline_layout
 };
-use crate::renderer::vulkan_renderer::sp_vulkan::{
-    splunk_vk_context::SpVkContext,
-    splunk_vk_render_pass::SpVkRenderPass,
-    splunk_vk_render_pass::{SpVkRenderPassInfo, ERenderPassBit, sp_create_vk_renderpass, sp_destroy_vk_renderpass},
-    vk_shader_utils::SpVkShaderModule
+use crate::renderer::vulkan_renderer::gk_vulkan::{
+    gunk_vk_context::GkVkContext,
+    gunk_vk_render_pass::GkVkRenderPass,
+    gunk_vk_render_pass::{GkVkRenderPassInfo, ERenderPassBit, gk_create_vk_renderpass, gk_destroy_vk_renderpass},
+    vk_shader_utils::GkVkShaderModule
 };
 use crate::{log_info, log_err, vk_check};
 
-use super::sp_vk_render_layer::{SpVkLayerDraw, SpVk2dLayerUpdate};
+use super::gk_vk_render_layer::{GkVkLayerDraw, GkVk2dLayerUpdate};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -95,14 +95,14 @@ const INDICES_DATA: [u32; 6] = [0, 1, 2, 2, 3, 0];
 
 pub struct VkSimple2dLayer
 {
-    renderpass:         SpVkRenderPass,
+    renderpass:         GkVkRenderPass,
     framebuffers:       Vec<vk::Framebuffer>,
-    descriptor:         SpVkDescriptor,
+    descriptor:         GkVkDescriptor,
     pipeline_layout:    vk::PipelineLayout,
     pipeline:           vk::Pipeline,
-    triangle_verts:     Option<SpVkBuffer>,
-    triangle_indices:   Option<SpVkBuffer>,
-    texture:            Option<SpVkImage>,
+    triangle_verts:     Option<GkVkBuffer>,
+    triangle_indices:   Option<GkVkBuffer>,
+    texture:            Option<GkVkImage>,
     sampler:            vk::Sampler
 }
 
@@ -110,15 +110,15 @@ impl VkSimple2dLayer
 {
     pub fn new(
             instance: &ash::Instance,
-            vk_ctx: &mut SpVkContext,
+            vk_ctx: &mut GkVkContext,
             texture_file: &std::path::Path
         ) -> Self
     {
         log_info!("Creating Simple2dLayer...");
-        let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
+        let texture = gk_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
         let sampler = create_vk_sampler(&vk_ctx.device);
         
-        let renderpass_info = SpVkRenderPassInfo{
+        let renderpass_info = GkVkRenderPassInfo{
             b_use_color: true,
             b_clear_color: false,
             b_use_depth: false,
@@ -127,16 +127,16 @@ impl VkSimple2dLayer
             flags: ERenderPassBit::NONE,
             samples: vk::SampleCountFlags::TYPE_1
         };
-        let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
+        let renderpass = gk_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         
         let descriptor = Self::create_desc_sets(vk_ctx, &texture, &sampler);
 
-        let framebuffers = sp_create_vk_color_only_framebuffers(&vk_ctx, &renderpass);
+        let framebuffers = gk_create_vk_color_only_framebuffers(&vk_ctx, &renderpass);
         let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, &Vec::new());
 
-        let mut shader_modules: Vec<SpVkShaderModule> = vec![
-            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("Simple2dLayer.vert").as_path()),
-            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("Simple2dLayer.frag").as_path())
+        let mut shader_modules: Vec<GkVkShaderModule> = vec![
+            GkVkShaderModule::new(&vk_ctx.device, to_shader_path("Simple2dLayer.vert").as_path()),
+            GkVkShaderModule::new(&vk_ctx.device, to_shader_path("Simple2dLayer.frag").as_path())
         ];
 
         let pipeline = Self::create_pipeline(
@@ -152,8 +152,8 @@ impl VkSimple2dLayer
         }
 
         // create buffers
-        let triangle_verts = sp_create_vk_array_buffer::<Simple2dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
-        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
+        let triangle_verts = gk_create_vk_array_buffer::<Simple2dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
+        let triangle_indices = gk_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
         
         log_info!("Simple2dLayer created.");
         Self
@@ -171,12 +171,12 @@ impl VkSimple2dLayer
     }
 
     fn create_desc_sets(
-            vk_ctx: &SpVkContext,
-            texture: &SpVkImage,
+            vk_ctx: &GkVkContext,
+            texture: &GkVkImage,
             sampler: &vk::Sampler
-        ) -> SpVkDescriptor
+        ) -> GkVkDescriptor
     {
-        let pool = sp_create_vk_desc_pool(vk_ctx, 0, 0, 1);
+        let pool = gk_create_vk_desc_pool(vk_ctx, 0, 0, 1);
 
         let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
             get_vk_desc_set_layout_binding(0, vk::DescriptorType::COMBINED_IMAGE_SAMPLER, 1, vk::ShaderStageFlags::FRAGMENT)
@@ -221,7 +221,7 @@ impl VkSimple2dLayer
             }
         }   
 
-        SpVkDescriptor
+        GkVkDescriptor
         { 
             layouts, 
             pool, 
@@ -230,9 +230,9 @@ impl VkSimple2dLayer
     }
 
     fn create_pipeline(
-            vk_ctx: &SpVkContext,
-            shader_modules: &mut Vec<SpVkShaderModule>,
-            renderpass: &SpVkRenderPass,
+            vk_ctx: &GkVkContext,
+            shader_modules: &mut Vec<GkVkShaderModule>,
+            renderpass: &GkVkRenderPass,
             layout: &vk::PipelineLayout,
             custom_extent: Option<vk::Extent2D>
         ) -> vk::Pipeline    
@@ -333,7 +333,7 @@ impl VkSimple2dLayer
         pipeline
     }
 
-    fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
+    fn draw(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
             vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.triangle_verts.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
@@ -349,26 +349,26 @@ impl VkSimple2dLayer
 
 }
 
-impl SpVkLayerDraw for VkSimple2dLayer
+impl GkVkLayerDraw for VkSimple2dLayer
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
+    fn draw_frame(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
         self.begin_renderpass(vk_ctx, cmd_buffer, &self.renderpass, self.pipeline, self.framebuffers[current_image]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
 
-    fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
+    fn destroy(&mut self, vk_ctx: &mut GkVkContext) 
     {
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
-        sp_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
+        gk_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
+        gk_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
+        gk_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
         unsafe { vk_ctx.device.destroy_sampler(self.sampler, None); }
 
-        sp_destroy_vk_descriptor(vk_ctx, &self.descriptor);
+        gk_destroy_vk_descriptor(vk_ctx, &self.descriptor);
         
         self.cleanup_framebuffers(&vk_ctx.device);
-        sp_destroy_vk_renderpass(vk_ctx, &self.renderpass);
+        gk_destroy_vk_renderpass(vk_ctx, &self.renderpass);
         unsafe {
             vk_ctx.device.destroy_pipeline_layout(self.pipeline_layout, None);
             vk_ctx.device.destroy_pipeline(self.pipeline, None);
@@ -377,19 +377,19 @@ impl SpVkLayerDraw for VkSimple2dLayer
 
     fn cleanup_framebuffers(&mut self, device: &ash::Device)
     {
-        sp_destroy_vk_framebuffers(device, &mut self.framebuffers);   
+        gk_destroy_vk_framebuffers(device, &mut self.framebuffers);   
     }
 
-    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, _depth_img: Option<&SpVkImage>)
+    fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, _depth_img: Option<&GkVkImage>)
     {
-        self.framebuffers = sp_create_vk_color_only_framebuffers(vk_ctx, &self.renderpass);
+        self.framebuffers = gk_create_vk_color_only_framebuffers(vk_ctx, &self.renderpass);
     }
 
 }
 
-impl SpVk2dLayerUpdate for VkSimple2dLayer
+impl GkVk2dLayerUpdate for VkSimple2dLayer
 {
-    fn update(&mut self, _vk_ctx: &SpVkContext)
+    fn update(&mut self, _vk_ctx: &GkVkContext)
     {
     }
 

@@ -1,4 +1,4 @@
-pub mod sp_vulkan;
+pub mod gk_vulkan;
 pub mod vk_render_layers;
 pub mod vulkan_renderer;
-pub mod sp_vk_camera;
+pub mod gk_vk_camera;

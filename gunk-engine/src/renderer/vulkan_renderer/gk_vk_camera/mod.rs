@@ -45,7 +45,7 @@ impl CamProjection
     }
 }
 
-pub struct SpCamera
+pub struct GkCamera
 {
     pub view:           CamView,
     pub projection:     CamProjection,
@@ -53,14 +53,14 @@ pub struct SpCamera
 }
 
 #[repr(C)]
-pub struct SpCameraUniformData
+pub struct GkCameraUniformData
 {
     // pub model:   [f32; 16],
     pub view:    [f32; 16],
     pub proj:    [f32; 16]
 }
 
-impl SpCameraUniformData
+impl GkCameraUniformData
 {
     pub fn new() -> Self
     {
@@ -72,7 +72,7 @@ impl SpCameraUniformData
         }
     }
 
-    pub fn update(&mut self, camera: &SpCamera)
+    pub fn update(&mut self, camera: &GkCamera)
     {
         // self.model = model.as_slice()[..].try_into().unwrap();
         self.view = camera.view.get_matrix().as_slice()[..].try_into().unwrap();

@@ -153,30 +153,30 @@ pub fn create_vk_shader_module(device: &ash::Device, spirv: &shaderc::Compilatio
     unsafe { vk_check!(device.create_shader_module(&create_info, None)).unwrap() }
 }
 
-/// ### SpVkShaderModule
+/// ### GkVkShaderModule
 /// <pre>
 /// - Members
 ///     handle:     vk::ShaderModule,
 ///     spirv:      shaderc::CompilationArtifact
 ///     stage:      vk::ShaderStageFlags
 /// </pre>
-pub struct SpVkShaderModule
+pub struct GkVkShaderModule
 {
     pub handle:     vk::ShaderModule,
     pub spirv:      shaderc::CompilationArtifact,
     pub stage:      vk::ShaderStageFlags
 }
 
-impl SpVkShaderModule
+impl GkVkShaderModule
 {
-    /// ### fn SpVkShaderModule::new(...) -> SpVkShaderModule
-    /// *Creates an instance of SpVkShaderModule*
+    /// ### fn GkVkShaderModule::new(...) -> GkVkShaderModule
+    /// *Creates an instance of GkVkShaderModule*
     /// <pre>
     /// - Params
     ///     device:         &ash::Device
     ///     file_path:      &std::path::Path
     /// - Return
-    ///     SpVkShaderModule
+    ///     GkVkShaderModule
     /// </pre>
     pub fn new(device: &ash::Device, file_path: &std::path::Path) -> Self
     {
@@ -187,8 +187,8 @@ impl SpVkShaderModule
         Self{ handle, spirv, stage }
     }
 
-    /// ### fn SpVkShaderModule::destroy(&mut self, ...)
-    /// *Destroys the Vulkan resources contained in an instance of SpVkShaderModule*
+    /// ### fn GkVkShaderModule::destroy(&mut self, ...)
+    /// *Destroys the Vulkan resources contained in an instance of GkVkShaderModule*
     /// <pre>
     /// - Param
     ///     <b>&mut self</b>

@@ -21,29 +21,29 @@ pub const VALIDATION: bool = true;
 #[cfg(not(debug_assertions))]
 pub const VALIDATION: bool = false;
 
-/// ### SpVkDebugLayers
+/// ### GkVkDebugLayers
 /// *Used for validation layer messages*
 /// <pre>
 /// - Members
 ///     utils:          ext::DebugUtils             <i>// Creates and destroys messenger</i>
 ///     messenger:      vk::DebugUtilsMessengerEXT  <i>// Responsible for validation layer messages</i>
 /// </pre>
-pub struct SpVkDebugLayers
+pub struct GkVkDebugLayers
 {
     pub utils: DebugUtils,
     pub messenger: vk::DebugUtilsMessengerEXT,
 }
 
-impl SpVkDebugLayers
+impl GkVkDebugLayers
 {
-    /// ### fn SpVkDebugLayers::new( ... ) -> SpVkDebugLayers
-    /// *Creates an instance of SpVkDebugLayers*
+    /// ### fn GkVkDebugLayers::new( ... ) -> GkVkDebugLayers
+    /// *Creates an instance of GkVkDebugLayers*
     /// <pre>
     /// - Params
     ///     entry:      &ash::Entry
     ///     instance:   &ash::Instance
     /// - Return
-    ///     SpVkDebuLayers
+    ///     GkVkDebuLayers
     /// </pre>
     pub fn new(entry: &Entry, instance: &Instance) -> Self
     {
@@ -78,8 +78,8 @@ impl SpVkDebugLayers
         }
     }
 
-    /// ### fn SpVkDebugLayers::destroy(&self)
-    /// *Destroys an instance of SpVkDebugLayers*
+    /// ### fn GkVkDebugLayers::destroy(&self)
+    /// *Destroys an instance of GkVkDebugLayers*
     /// <pre>
     /// - Param
     ///     <b>&self</b>
@@ -91,7 +91,7 @@ impl SpVkDebugLayers
 
 }
 
-/// ### SpVkSurface struct
+/// ### GkVkSurface struct
 /// *The surface is responsible for the drawing on the screen*
 /// *VkSurface convenience struct*
 /// <pre>
@@ -99,23 +99,23 @@ impl SpVkDebugLayers
 ///     loader:     khr::Surface        <i>// Creates and destroys surface handle</i>
 ///     handle:     vk::SurfaceKHR      <i>// VkSurfaceKHR handle</i>
 /// </pre>
-pub struct SpVkSurface
+pub struct GkVkSurface
 {
     pub loader:     Surface,
     pub handle:     vk::SurfaceKHR
 }
 
-impl SpVkSurface
+impl GkVkSurface
 {
-    /// ### fn SpVkSurface::new( ... ) -> SpVkSurface
-    /// *Creates an instance of SpVkSurface*
+    /// ### fn GkVkSurface::new( ... ) -> GkVkSurface
+    /// *Creates an instance of GkVkSurface*
     /// <pre>
     /// - Params
     ///     window:         &winit::window::Window
     ///     entry:          &ash::Entry
     ///     instance:       &ash::Instance
     /// - Return
-    ///     SpVkSurface
+    ///     GkVkSurface
     /// </pre>
     pub fn new(window: &Window, entry: &Entry, instance: &Instance) -> Self
     {
@@ -126,8 +126,8 @@ impl SpVkSurface
         Self{ loader, handle }
     }
 
-    /// ### fn SpVkSurface::destroy(&self)
-    /// *Destroys instance of SpVkSurface*
+    /// ### fn GkVkSurface::destroy(&self)
+    /// *Destroys instance of GkVkSurface*
     /// <pre>
     /// - Param
     ///     <b>&self</b>
@@ -138,51 +138,51 @@ impl SpVkSurface
     }
 }
 
-/// ### SpVkLoader struct
+/// ### GkVkLoader struct
 /// *Contains handles necessary to load and debug vulkan*
 /// <pre>
 /// - Members
 ///     entry:          &ash::Entry
 ///     instance:       &ash::Instance
-///     debug_layer:    Option&lt;SpVkDebugLayers&gt;
-///     surface:        SpVkSurface
+///     debug_layer:    Option&lt;GkVkDebugLayers&gt;
+///     surface:        GkVkSurface
 /// </pre>
-pub struct SpVkLoader
+pub struct GkVkLoader
 {
     pub entry:          Entry,
     pub instance:       Instance,
-    pub debug_layer:    Option<SpVkDebugLayers>,
-    pub surface:        SpVkSurface
+    pub debug_layer:    Option<GkVkDebugLayers>,
+    pub surface:        GkVkSurface
 }
 
-impl SpVkLoader
+impl GkVkLoader
 {
     
-    /// ### fn SpVkLoader::new( ... ) -> SpVkLoader
-    /// *Creates an instance SpVkLoader struct. Loads vulkan and debuggers.*
+    /// ### fn GkVkLoader::new( ... ) -> GkVkLoader
+    /// *Creates an instance GkVkLoader struct. Loads vulkan and debuggers.*
     /// <pre>
     /// - Param
     ///     window:         &winit::window::Window
     ///     app_name:       CString
     ///     app_version:    u32
     /// - Return
-    ///     SpVkLoader
+    ///     GkVkLoader
     /// </pre>
     pub fn new(window: &Window, app_name: CString, app_version: u32) -> Self
     {
         let entry = unsafe { Entry::load().map_err(|e| { log_err!(e); } ).unwrap() };
 
-        let engine_name = CString::new("Splunk Engine").unwrap();
+        let engine_name = CString::new("Gunk Engine").unwrap();
         let engine_version = vk::make_api_version(0, 0, 1, 0);
         let instance = create_vk_instance(window, &entry, app_name, app_version, engine_name, engine_version);
 
-        let mut debug_layer: Option<SpVkDebugLayers> = None;
+        let mut debug_layer: Option<GkVkDebugLayers> = None;
         if VALIDATION
         {
-            debug_layer = Some(SpVkDebugLayers::new(&entry, &instance));
+            debug_layer = Some(GkVkDebugLayers::new(&entry, &instance));
         }
 
-        let surface = SpVkSurface::new(&window, &entry, &instance);
+        let surface = GkVkSurface::new(&window, &entry, &instance);
 
         Self
         {
@@ -193,8 +193,8 @@ impl SpVkLoader
         }
     }
 
-    /// ### SpVkLoader::destroy(&self)
-    /// *Destroys an instance of SpVkLoader, destroying vulkan loaders, surface, and debuggers.*
+    /// ### GkVkLoader::destroy(&self)
+    /// *Destroys an instance of GkVkLoader, destroying vulkan loaders, surface, and debuggers.*
     /// <pre>
     /// - Param
     ///     <b>&self</b>

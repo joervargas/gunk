@@ -3,33 +3,33 @@ use gpu_allocator::vulkan::Allocator;
 
 use crate::{log_info, vk_check};
 
-use super::splunk_vk_render_pass::SpVkRenderPass;
+use super::gunk_vk_render_pass::GkVkRenderPass;
 use super::vk_utils::*;
-use super::splunk_vk_img::create_vk_image_view;
+use super::gunk_vk_img::create_vk_image_view;
 
-use super::splunk_vk_loader::SpVkLoader;
+use super::gunk_vk_loader::GkVkLoader;
 
-/// ### SpVkQueue struct
+/// ### GkVkQueue struct
 /// *Contain Vulkan queue family index and a VkQueue handle*
 /// <pre>
 /// - Members
 ///     index:      Option&lt;u32&gt;   <i>// Queue family index</i>
 ///     handle:     vk::Queue     <i>// VkQueue handle</i>
 /// </pre>
-pub struct SpVkQueue
+pub struct GkVkQueue
 {
     pub index:      Option<u32>,
     pub handle:     vk::Queue,
 }
 
-impl SpVkQueue
+impl GkVkQueue
 {
-    /// ### SpVkQueue::new() -> SpVkQueue
-    /// *Returns a new instance of SpVkQueue*<br>
+    /// ### GkVkQueue::new() -> GkVkQueue
+    /// *Returns a new instance of GkVkQueue*<br>
     /// *Index and handle are not set*
     /// <pre>
     /// - Return
-    ///     SpVkQueue
+    ///     GkVkQueue
     /// </pre>
     fn new() -> Self
     {
@@ -41,38 +41,38 @@ impl SpVkQueue
     }
 }
 
-/// ### SpVkQueues struct
-/// *A convenience struct containing different "families" of SpVkQueue struct*
+/// ### GkVkQueues struct
+/// *A convenience struct containing different "families" of GkVkQueue struct*
 /// <pre>
 /// - Members
-///     graphics:       SpVkQueue       <i>// SpVkQueue for graphics family of instructrions.</i>
+///     graphics:       GkVkQueue       <i>// GkVkQueue for graphics family of instructrions.</i>
 /// </pre>
-pub struct SpVkQueues
+pub struct GkVkQueues
 {
-    pub graphics:   SpVkQueue,
+    pub graphics:   GkVkQueue,
 }
 
-impl SpVkQueues
+impl GkVkQueues
 {
-    /// ### SpVkQueues::new() -> SpVkQueues
-    /// *Returns a new instance of SpVkQueues.*<br><br>
-    /// *Each SpVkQueue family is not yet populated with usable values.*<br>
+    /// ### GkVkQueues::new() -> GkVkQueues
+    /// *Returns a new instance of GkVkQueues.*<br><br>
+    /// *Each GkVkQueue family is not yet populated with usable values.*<br>
     /// *Must call **fn queury_indices()** and **fn queury_queues()***
     /// <pre>
     /// - Return 
-    ///     SpVkQueues
+    ///     GkVkQueues
     /// </pre>
     pub fn new() -> Self
     { 
         Self
         { 
-            graphics: SpVkQueue::new() 
+            graphics: GkVkQueue::new() 
         } 
     } 
 
-    /// ### fn SpVkQueues::queury_indices( &mut self, ... )
+    /// ### fn GkVkQueues::queury_indices( &mut self, ... )
     /// *Queries VkQueueFamilyIndices from the physical device.*<br>
-    /// *Populates the SpVkQueue families if found.*
+    /// *Populates the GkVkQueue families if found.*
     /// <pre>
     /// - Params
     ///     <b>&mut self</b>
@@ -83,7 +83,7 @@ impl SpVkQueues
     {
         let device_queue_families = unsafe { instance.get_physical_device_queue_family_properties(*physical_device) };
 
-        // let mut graphics = SpVkQueue::new();
+        // let mut graphics = GkVkQueue::new();
         let mut index: u32 = 0;
         for queue_family in device_queue_families.iter()
         {
@@ -130,9 +130,9 @@ impl SpVkQueues
 
 }
 
-/// ### SpVkSwapchain struct
+/// ### GkVkSwapchain struct
 /// *Contains handle to vk::Swapchain and all related data.*</br>
-/// *SpVkSwapchain is responsible for the images rendered to screen.*
+/// *GkVkSwapchain is responsible for the images rendered to screen.*
 /// <pre>
 /// - Members
 ///     loader:     khr::Swapchain
@@ -142,7 +142,7 @@ impl SpVkQueues
 ///     format:     vk::Format
 ///     extent:     vk::Extent2D
 /// </pre>
-pub struct SpVkSwapchain
+pub struct GkVkSwapchain
 {
     pub loader:     ash::extensions::khr::Swapchain,
     pub handle:     vk::SwapchainKHR,
@@ -152,23 +152,23 @@ pub struct SpVkSwapchain
     pub extent:     vk::Extent2D
 }
 
-impl SpVkSwapchain
+impl GkVkSwapchain
 {
 
-    /// ### fn SpVkSWapchain::new( ... ) -> SpVkSwapchain
-    /// *Creates an instance of SpVkSwapchain.*
+    /// ### fn GkVkSWapchain::new( ... ) -> GkVkSwapchain
+    /// *Creates an instance of GkVkSwapchain.*
     /// <pre>
     /// - Param
-    ///     loader:             &SpVkLoader
+    ///     loader:             &GkVkLoader
     ///     device:             &ash::Device
     ///     physical_device:    &vk::PhysicalDevice
     ///     queue_indices:      &Vec&lt;u32&gt;
     ///     width:              u32
     ///     height:             u32
     /// - Return
-    ///     SpVkSwapchain
+    ///     GkVkSwapchain
     /// </pre>
-    pub fn new(loader: &SpVkLoader, device: &ash::Device, physical_device: &vk::PhysicalDevice, queue_indices: &Vec<u32>,  width: u32, height: u32) -> Self
+    pub fn new(loader: &GkVkLoader, device: &ash::Device, physical_device: &vk::PhysicalDevice, queue_indices: &Vec<u32>,  width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanSwapchain struct...");
         let details = query_vk_swapchain_details(physical_device, &loader.surface);
@@ -203,8 +203,8 @@ impl SpVkSwapchain
         }
     }
 
-    /// ### fn SpVkSwapchain::destroy( &self, ... )
-    /// *Destroys an instance of SpVkSwapchain.*
+    /// ### fn GkVkSwapchain::destroy( &self, ... )
+    /// *Destroys an instance of GkVkSwapchain.*
     /// <pre>
     /// - Param
     ///     <b>&self</b>
@@ -223,32 +223,32 @@ impl SpVkSwapchain
     }
 }
 
-/// ### SpVkCommands struct
+/// ### GkVkCommands struct
 /// *Contains vk::CommandPool and vk::CommandBuffer(s).*</br>
-/// *SpVkCommands are the allocated commands set to execute on the gpu.*
+/// *GkVkCommands are the allocated commands set to execute on the gpu.*
 /// <pre>
 /// - Members
 ///     pool:       vk::CommandPool
 ///     buffers:    Vec&lt;vk::CommandBuffer&gt;
 /// </pre>
-pub struct  SpVkCommands
+pub struct  GkVkCommands
 {
     pub pool:               vk::CommandPool,
     pub buffers:            Vec<vk::CommandBuffer>,
     // current_frame_index:    usize
 }
 
-impl SpVkCommands
+impl GkVkCommands
 {
-    /// ### fn SpVkCommands::new( ... ) -> SpVkCommands
-    /// *Creates an instance of SpVkCommands.*
+    /// ### fn GkVkCommands::new( ... ) -> GkVkCommands
+    /// *Creates an instance of GkVkCommands.*
     /// <pre>
     /// - Params
     ///     device:                 &ash::Device
     ///     queue_family_index:     u32
     ///     buffer_count:           u32
     /// - Return
-    ///     SpVkCommands
+    ///     GkVkCommands
     /// </pre>
     pub fn new(device: &ash::Device, queue_family_index: u32, buffer_count: u32) -> Self
     {
@@ -259,8 +259,8 @@ impl SpVkCommands
         Self{ pool, buffers }
     }
 
-    /// ### fn SpVkCommands::destroy( &self, ... )
-    /// *Destroys the instance of SpVkCommands.*
+    /// ### fn GkVkCommands::destroy( &self, ... )
+    /// *Destroys the instance of GkVkCommands.*
     /// <pre>
     /// - Params
     ///     <b>&self</b>
@@ -292,7 +292,7 @@ impl SpVkCommands
     // }
 }
 
-pub struct SpVkFrameSync
+pub struct GkVkFrameSync
 {
     pub wait_semaphores:    Vec<vk::Semaphore>,
     pub render_semaphores:  Vec<vk::Semaphore>,
@@ -301,7 +301,7 @@ pub struct SpVkFrameSync
     current_frame_index:    usize,
 }
 
-impl SpVkFrameSync
+impl GkVkFrameSync
 {
     pub fn new(device: &ash::Device, frames_in_flight: usize) -> Self
     {
@@ -373,49 +373,49 @@ impl SpVkFrameSync
     }
 }
 
-/// ### SpVkContext struct
+/// ### GkVkContext struct
 /// *Vulkan rendering Context.*<br>
 /// <pre>
 /// - Members
 ///     device:             ash::Device
 ///     physical_device:    vk::PhysicalDevice
 ///     allocator:          gpu_allocator::vulkan::Allocator
-///     queues:             SpVkQueues
-///     swapchain:          SpVkSwapChain
-///     draw_cmds:          SpVkCommands
+///     queues:             GkVkQueues
+///     swapchain:          GkVkSwapChain
+///     draw_cmds:          GkVkCommands
 ///     render_semaphore:   vk::Semaphore
 ///     wait_semaphore:     vk::Semaphore
 /// </pre>
-pub struct SpVkContext
+pub struct GkVkContext
 {
     pub device:             Device,
     pub physical_device:    vk::PhysicalDevice,
     pub allocator:          Option<Allocator>,
-    pub queues:             SpVkQueues,
-    pub swapchain:          SpVkSwapchain,
-    pub draw_cmds:          SpVkCommands,
+    pub queues:             GkVkQueues,
+    pub swapchain:          GkVkSwapchain,
+    pub draw_cmds:          GkVkCommands,
     // pub render_semaphore:   vk::Semaphore,
     // pub wait_semaphore:     vk::Semaphore,
-    pub frame_sync:         SpVkFrameSync,
+    pub frame_sync:         GkVkFrameSync,
 }
 
-impl SpVkContext
+impl GkVkContext
 {
-    /// ### fn SpVkContext::new( ... ) -> SpVkContext
-    /// *Creates an instance of SpVkContext.*
+    /// ### fn GkVkContext::new( ... ) -> GkVkContext
+    /// *Creates an instance of GkVkContext.*
     /// <pre>
     /// - Params
-    ///     loader:     &SpVkLoader
+    ///     loader:     &GkVkLoader
     ///     width:      u32
     ///     height:     u32
     /// </pre>
-    pub fn new(loader: &SpVkLoader, width: u32, height: u32) -> Self
+    pub fn new(loader: &GkVkLoader, width: u32, height: u32) -> Self
     {
         log_info!("Creating VulkanContext...");
 
         let physical_device = find_suitable_vk_physical_device(&loader.instance, &loader.surface);
 
-        let mut queues = SpVkQueues::new();
+        let mut queues = GkVkQueues::new();
         queues.query_indices(&loader.instance, &physical_device);
 
         let queue_index_list = queues.get_index_list();
@@ -424,11 +424,11 @@ impl SpVkContext
 
         let allocator = create_vk_allocator(&loader.instance, &physical_device, &device);
 
-        let swapchain = SpVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
+        let swapchain = GkVkSwapchain::new(loader, &device, &physical_device, &queue_index_list, width, height);
 
-        let frame_sync = SpVkFrameSync::new(&device, 2);
+        let frame_sync = GkVkFrameSync::new(&device, 2);
         
-        let draw_cmds = SpVkCommands::new(&device, queues.graphics.index.clone().unwrap(), frame_sync.get_num_frames_in_flight() as u32);
+        let draw_cmds = GkVkCommands::new(&device, queues.graphics.index.clone().unwrap(), frame_sync.get_num_frames_in_flight() as u32);
 
         log_info!("VulkanContext created");
         Self
@@ -443,8 +443,8 @@ impl SpVkContext
         }
     }
 
-    /// ### fn SpVkContext::destroy( &self )
-    /// *Destroys the instance of SpVkContext.*
+    /// ### fn GkVkContext::destroy( &self )
+    /// *Destroys the instance of GkVkContext.*
     /// <pre>
     /// - Params
     ///     <b>&self</b>
@@ -466,9 +466,9 @@ impl SpVkContext
         self.swapchain.destroy(&self.device);
     }
 
-    pub fn recreate_swapchain(&mut self, loader: &SpVkLoader, width: u32, height: u32)
+    pub fn recreate_swapchain(&mut self, loader: &GkVkLoader, width: u32, height: u32)
     {
-        self.swapchain = SpVkSwapchain::new(loader, &self.device, &self.physical_device, &self.queues.get_index_list(), width, height);
+        self.swapchain = GkVkSwapchain::new(loader, &self.device, &self.physical_device, &self.queues.get_index_list(), width, height);
     }
 
     // pub fn reset_draw_cmd_pool(&self)
@@ -489,15 +489,15 @@ impl SpVkContext
 
 }
 
-/// ### fn sp_begin_single_time_vk_command_buffer( ... ) -> vk::CommandBuffer
+/// ### fn gk_begin_single_time_vk_command_buffer( ... ) -> vk::CommandBuffer
 /// *Allocates and sets up a vk::CommandBuffer for temporary use, then returns it.*
 /// <pre>
 /// - Params
-///     vk_ctx:     &SpVkContext
+///     vk_ctx:     &GkVkContext
 /// - Return
 ///     vk::CommandBuffer
 /// </pre>
-pub fn sp_begin_single_time_vk_command_buffer(vk_ctx: &SpVkContext) -> vk::CommandBuffer
+pub fn gk_begin_single_time_vk_command_buffer(vk_ctx: &GkVkContext) -> vk::CommandBuffer
 {
     let alloc_info = vk::CommandBufferAllocateInfo
     {
@@ -521,14 +521,14 @@ pub fn sp_begin_single_time_vk_command_buffer(vk_ctx: &SpVkContext) -> vk::Comma
     cmd_buffer
 }
 
-/// ### fn sp_end_single_time_vk_command_buffer( ... )
+/// ### fn gk_end_single_time_vk_command_buffer( ... )
 /// *Submits a temporary vk::CommandBuffer to the gpu for execution, then frees it from memory.*
 /// <pre>
 /// - Params
-///     vk_ctx:         &SpVkContext
+///     vk_ctx:         &GkVkContext
 ///     cmd_buffer:     &vk::CommandBuffer
 /// </pre>
-pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk::CommandBuffer)
+pub fn gk_end_single_time_vk_command_buffer(vk_ctx: &GkVkContext, cmd_buffer: vk::CommandBuffer)
 {
     unsafe { vk_check!(vk_ctx.device.end_command_buffer(cmd_buffer)).unwrap(); }
 
@@ -556,9 +556,9 @@ pub fn sp_end_single_time_vk_command_buffer(vk_ctx: &SpVkContext, cmd_buffer: vk
 }
 
 
-pub fn sp_create_vk_color_depth_framebuffers(
-        vk_ctx: &SpVkContext, 
-        renderpass: &SpVkRenderPass, 
+pub fn gk_create_vk_color_depth_framebuffers(
+        vk_ctx: &GkVkContext, 
+        renderpass: &GkVkRenderPass, 
         depth_view: &vk::ImageView
     ) -> Vec<vk::Framebuffer>
 {
@@ -595,9 +595,9 @@ pub fn sp_create_vk_color_depth_framebuffers(
 }
 
 
-pub fn sp_create_vk_color_only_framebuffers(
-        vk_ctx: &SpVkContext, 
-        renderpass: &SpVkRenderPass
+pub fn gk_create_vk_color_only_framebuffers(
+        vk_ctx: &GkVkContext, 
+        renderpass: &GkVkRenderPass
     ) -> Vec<vk::Framebuffer>
 {
     let mut framebuffers: Vec<vk::Framebuffer> = Vec::new();
@@ -631,7 +631,7 @@ pub fn sp_create_vk_color_only_framebuffers(
     framebuffers
 }
 
-pub fn sp_destroy_vk_framebuffers(device: &ash::Device, framebuffers: &mut Vec<vk::Framebuffer>)
+pub fn gk_destroy_vk_framebuffers(device: &ash::Device, framebuffers: &mut Vec<vk::Framebuffer>)
 {
     unsafe{
         for framebuffer in framebuffers.iter()

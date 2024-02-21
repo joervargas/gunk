@@ -1,10 +1,10 @@
 use ash::{self, vk};
 
-use super::splunk_vk_img::find_vk_format_depth_img;
+use super::gunk_vk_img::find_vk_format_depth_img;
 
 use crate::vk_check;
 
-use super::splunk_vk_context::SpVkContext;
+use super::gunk_vk_context::GkVkContext;
 
 use bitflags::bitflags;
 
@@ -64,7 +64,7 @@ bitflags! {
 // }
 
 
-/// ### SpVkRenderPassInfo struct
+/// ### GkVkRenderPassInfo struct
 /// *Details that describe the VkRenderPass*
 /// <pre>
 /// - Members
@@ -75,7 +75,7 @@ bitflags! {
 ///     b_clear_depth:      bool
 ///     flags:              ERenderPassBit
 /// </pre>
-pub struct SpVkRenderPassInfo
+pub struct GkVkRenderPassInfo
 {
     pub b_use_color:        bool,
     pub b_clear_color:      bool,
@@ -86,30 +86,30 @@ pub struct SpVkRenderPassInfo
     pub samples:            vk::SampleCountFlags
 }
 
-/// ### SpVkRenderPass struct
+/// ### GkVkRenderPass struct
 /// *Contains VkRenderPass handle and details describing it.*
 /// <pre>
 /// - Members
-///     info:       SpVkRenderPassInfo
+///     info:       GkVkRenderPassInfo
 ///     handle:     vk::RenderPass
 /// </pre>
-pub struct SpVkRenderPass
+pub struct GkVkRenderPass
 {
-    pub info:       SpVkRenderPassInfo,
+    pub info:       GkVkRenderPassInfo,
     pub handle:     vk::RenderPass
 }
 
-/// ### fn sp_create_vk_renderpass( ... ) -> SpVkRenderPass
-/// *Creates an instance of SpVkRenderPass.*
+/// ### fn gk_create_vk_renderpass( ... ) -> GkVkRenderPass
+/// *Creates an instance of GkVkRenderPass.*
 /// <pre>
 /// - Params
 ///     instance:       &ash::Instance
-///     vk_ctx:         &SpVkContext
-///     info:           SpVkRenderPassInfo
+///     vk_ctx:         &GkVkContext
+///     info:           GkVkRenderPassInfo
 /// - Return
-///     SpVkRenderpass
+///     GkVkRenderpass
 /// </pre>
-pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, info: SpVkRenderPassInfo) -> SpVkRenderPass
+pub fn gk_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &GkVkContext, info: GkVkRenderPassInfo) -> GkVkRenderPass
 {
     let offscreen_internal: bool = (info.flags & ERenderPassBit::OFFSCREEN_INTERNAL) != ERenderPassBit::NONE;
     let first: bool = (info.flags & ERenderPassBit::FIRST) != ERenderPassBit::NONE;
@@ -254,14 +254,14 @@ pub fn sp_create_vk_renderpass(instance: &ash::Instance, vk_ctx: &SpVkContext, i
 
     let handle = unsafe { vk_check!( vk_ctx.device.create_render_pass(&create_info, None) ).unwrap() };
 
-    SpVkRenderPass
+    GkVkRenderPass
     {
         info,
         handle
     }
 }
 
-pub fn sp_destroy_vk_renderpass(vk_ctx: &SpVkContext, renderpass: &SpVkRenderPass)
+pub fn gk_destroy_vk_renderpass(vk_ctx: &GkVkContext, renderpass: &GkVkRenderPass)
 {
     unsafe{
         vk_ctx.device.destroy_render_pass(renderpass.handle, None);

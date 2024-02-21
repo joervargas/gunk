@@ -1,4 +1,4 @@
-pub mod sp_vk_render_layer;
+pub mod gk_vk_render_layer;
 pub mod vk_begin_layer;
 pub mod vk_model_layer;
 pub mod vk_simple3d_layer;

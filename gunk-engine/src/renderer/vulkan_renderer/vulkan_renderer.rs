@@ -1,24 +1,22 @@
 use crate::renderer::renderer_utils::{self, to_asset_path};
 use crate::{log_err, vk_check, log_info, log_warn};
 
-use crate::renderer::vulkan_renderer::sp_vulkan::splunk_vk_buffer::map_vk_allocation_data;
-use crate::renderer::vulkan_renderer::vk_render_layers::sp_vk_render_layer::SpVk3dLayerUpdate;
 
 use ash::vk::BufferUsageFlags;
 use ash::{self, vk};
 
-use super::sp_vk_camera::{SpCamera, SpCameraUniformData, CamView, CamProjection};
-use super::sp_vulkan::splunk_vk_buffer::{SpVkBuffer, sp_create_vk_buffers, sp_destroy_vk_buffers};
-use super::sp_vulkan::splunk_vk_img::{sp_create_vk_depth_img, sp_destroy_vk_img, SpVkImage};
-use super::sp_vulkan::{
-    splunk_vk_loader::SpVkLoader, 
-    splunk_vk_context::SpVkContext
+use super::gk_vk_camera::{GkCamera, GkCameraUniformData, CamView, CamProjection};
+use super::gk_vulkan::gunk_vk_buffer::{GkVkBuffer, gk_create_vk_buffers, gk_destroy_vk_buffers, map_vk_allocation_data};
+use super::gk_vulkan::gunk_vk_img::{gk_create_vk_depth_img, gk_destroy_vk_img, GkVkImage};
+use super::gk_vulkan::{
+    gunk_vk_loader::GkVkLoader, 
+    gunk_vk_context::GkVkContext
 };
-use super::vk_render_layers::sp_vk_render_layer::{Vk2dLayerList, Vk3dLayerList, SpVk2dLayerUpdate};
+use super::vk_render_layers::gk_vk_render_layer::{Vk2dLayerList, Vk3dLayerList, GkVk2dLayerUpdate, GkVk3dLayerUpdate};
 use super::vk_render_layers::vk_simple3d_layer::VkSimple3dLayer;
 use super::vk_render_layers::vk_simple_skybox_layer::VkSimpleSkyBoxLayer;
 use super::vk_render_layers::{
-    sp_vk_render_layer::SpVkLayerDraw,
+    gk_vk_render_layer::GkVkLayerDraw,
     vk_begin_layer::VkBeginLayer,
     vk_end_layer::VkEndLayer,
     // vk_simple2d_layer::VkSimple2dLayer
@@ -32,11 +30,11 @@ use std::ffi::CString;
 
 pub struct VulkanRenderer
 {
-    pub loader:             SpVkLoader,
-    pub vk_ctx:             SpVkContext,
-    pub transform_uniforms: Vec<SpVkBuffer>, // Uniform buffers
-    pub camera:             SpCamera,
-    pub depth_img:          Option<SpVkImage>,
+    pub loader:             GkVkLoader,
+    pub vk_ctx:             GkVkContext,
+    pub transform_uniforms: Vec<GkVkBuffer>, // Uniform buffers
+    pub camera:             GkCamera,
+    pub depth_img:          Option<GkVkImage>,
     vk_begin_layer:         VkBeginLayer,
     vk_end_layer:           VkEndLayer,
     pub layers3d:           Vk3dLayerList,
@@ -49,20 +47,20 @@ impl VulkanRenderer
 {
     pub fn new(window: &Window, app_name: CString, app_version: u32) -> Self
     {
-        let loader = SpVkLoader::new(window, app_name, app_version);
+        let loader = GkVkLoader::new(window, app_name, app_version);
 
         let inner_size = window.inner_size();
-        let mut vk_ctx = SpVkContext::new(&loader, inner_size.width, inner_size.height);
+        let mut vk_ctx = GkVkContext::new(&loader, inner_size.width, inner_size.height);
         let num_frames = vk_ctx.frame_sync.get_num_frames_in_flight();
 
-        let depth_img = sp_create_vk_depth_img(&loader.instance, &mut vk_ctx, inner_size.width, inner_size.height);
+        let depth_img = gk_create_vk_depth_img(&loader.instance, &mut vk_ctx, inner_size.width, inner_size.height);
 
-        let transform_uniforms = sp_create_vk_buffers(
+        let transform_uniforms = gk_create_vk_buffers(
             &mut vk_ctx,
             "transform uniform",
             BufferUsageFlags::UNIFORM_BUFFER,
             MemoryLocation::CpuToGpu,
-            std::mem::size_of::<SpCameraUniformData>() as vk::DeviceSize,
+            std::mem::size_of::<GkCameraUniformData>() as vk::DeviceSize,
             num_frames
         );
 
@@ -79,7 +77,7 @@ impl VulkanRenderer
             near: 0.1,
             far: 100.0
         };
-        let camera = SpCamera{ view, projection };
+        let camera = GkCamera{ view, projection };
 
         let vk_begin_layer = VkBeginLayer::new(&loader.instance, &mut vk_ctx, Some(&depth_img));
         let vk_end_layer = VkEndLayer::new(&loader.instance, &mut vk_ctx, Some(&depth_img));
@@ -191,8 +189,8 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
 
     fn destroy(&mut self) 
     {
-        sp_destroy_vk_img(&mut self.vk_ctx, self.depth_img.take().unwrap());
-        sp_destroy_vk_buffers(&mut self.vk_ctx, &mut self.transform_uniforms);
+        gk_destroy_vk_img(&mut self.vk_ctx, self.depth_img.take().unwrap());
+        gk_destroy_vk_buffers(&mut self.vk_ctx, &mut self.transform_uniforms);
 
         self.vk_begin_layer.destroy(&mut self.vk_ctx);
         self.layers3d.destroy(&mut self.vk_ctx);
@@ -212,11 +210,11 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         let v = self.camera.view.get_matrix().as_slice()[..].try_into().unwrap();
         let p = self.camera.projection.get_matrix().as_slice()[..].try_into().unwrap();
 
-        let camera_uniform_data = SpCameraUniformData{ view: v, proj: p };
+        let camera_uniform_data = GkCameraUniformData{ view: v, proj: p };
 
 
         let current_frame = self.vk_ctx.frame_sync.get_current_frame_index();
-        map_vk_allocation_data::<SpCameraUniformData>(&self.transform_uniforms[current_frame].allocation, &[camera_uniform_data], 1);
+        map_vk_allocation_data::<GkCameraUniformData>(&self.transform_uniforms[current_frame].allocation, &[camera_uniform_data], 1);
 
         self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], delta_time);
         self.layers2d.update(&self.vk_ctx);

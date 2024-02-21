@@ -9,13 +9,12 @@ use gpu_allocator::{
     }, 
 };
 
-use stb_image::stb_image;
 
-use super::splunk_vk_buffer::create_vk_buffer;
-use super::splunk_vk_context::{
-    SpVkContext, 
-    sp_begin_single_time_vk_command_buffer, 
-    sp_end_single_time_vk_command_buffer
+use super::gunk_vk_buffer::create_vk_buffer;
+use super::gunk_vk_context::{
+    GkVkContext, 
+    gk_begin_single_time_vk_command_buffer, 
+    gk_end_single_time_vk_command_buffer
 };
 
 use crate::renderer::{
@@ -24,14 +23,14 @@ use crate::renderer::{
         convert_multi_file_to_cubemap_faces, 
         convert_vertical_cross_to_cubemap_faces
     }, 
-    sp_bitmap::{self, SpBitMap},
+    gk_bitmap::{self, GkBitMap},
 };
 
 use crate::{ log_err, vk_check };
 
 
 use core::panic;
-use std::{ffi::c_char, os::raw::c_int};
+// use std::{ffi::c_char, os::raw::c_int};
 
 
 
@@ -473,7 +472,7 @@ pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::Phys
 }
 
 
-/// ### struct SpVkImage
+/// ### struct GkVkImage
 /// *A convenience struct. has the image, memory allocation, and view*
 /// <pre>
 /// - Members
@@ -481,7 +480,7 @@ pub fn find_vk_format_depth_img(instance: &ash::Instance, phys_device: &vk::Phys
 ///     alloc:      vulkan::Allocation
 ///     view:       vk::ImageView
 /// </pre>
-pub struct SpVkImage
+pub struct GkVkImage
 {
     pub handle:     vk::Image,
     pub alloc:      Allocation,
@@ -489,16 +488,16 @@ pub struct SpVkImage
     pub size:       vk::DeviceSize,
 }
 
-/// ### sp_create_vk_image( ... ) -> SpVkImage
-/// *Creates a generic SpVkImage from a given file_name.*
+/// ### gk_create_vk_image( ... ) -> GkVkImage
+/// *Creates a generic GkVkImage from a given file_name.*
 /// <pre>
 /// - Params
-///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     vk_ctx:         &mut GkVkContext        <i>// mutable because of allocator</i>
 ///     file_name:      &str
 /// - Return
-///     SpVkImage
+///     GkVkImage
 /// </pre>
-pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImage
+pub fn gk_create_vk_image(vk_ctx: &mut GkVkContext, file_name: &str) -> GkVkImage
 {  
 
     let img = image::open(std::path::Path::new(file_name)).map_err( |e| { log_err!(e); } ).unwrap();
@@ -531,7 +530,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
         vk::ImageTiling::OPTIMAL, vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED, 
         1, vk::ImageCreateFlags::empty());
 
-    let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+    let cmd_buffer = gk_begin_single_time_vk_command_buffer(vk_ctx);
 
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
@@ -551,7 +550,7 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
             vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, 
             1, 1);
 
-    sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+    gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
     unsafe
     {
@@ -565,19 +564,19 @@ pub fn sp_create_vk_image(vk_ctx: &mut SpVkContext, file_name: &str) -> SpVkImag
         vk::ImageViewType::TYPE_2D, 
         1, 1);
 
-    SpVkImage { handle, alloc, view, size: img_size }
+    GkVkImage { handle, alloc, view, size: img_size }
 }
 
-/// ### fn sp_create_vk_depth_img( ... ) -> SpVkImage
-/// *Creates an SpVkImage used for depth textures.*
+/// ### fn gk_create_vk_depth_img( ... ) -> GkVkImage
+/// *Creates an GkVkImage used for depth textures.*
 /// <pre>
 /// - Params
 ///     instance:       &ash::Instance
-///     vk_ctx:         &mut SpVkContext        <i>// mutable because of allocator</i>
+///     vk_ctx:         &mut GkVkContext        <i>// mutable because of allocator</i>
 ///     width:          u32
 ///     height:         u32
 /// </pre>
-pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext, width: u32, height: u32) -> SpVkImage
+pub fn gk_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut GkVkContext, width: u32, height: u32) -> GkVkImage
 {
     let format = find_vk_format_depth_img(instance, &vk_ctx.physical_device);
     let (img, alloc) = create_vk_image(
@@ -593,18 +592,18 @@ pub fn sp_create_vk_depth_img(instance: &ash::Instance, vk_ctx: &mut SpVkContext
         vk::ImageViewType::TYPE_2D,
         1, 1);
 
-    let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+    let cmd_buffer = gk_begin_single_time_vk_command_buffer(vk_ctx);
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
             img, format, 
             vk::ImageLayout::UNDEFINED, 
             vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
             1, 1);
-    sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+    gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
     let size : vk::DeviceSize = (std::mem::size_of::<u8>() as u32 * width * height) as vk::DeviceSize;
 
-    SpVkImage { handle: img, alloc, view, size }
+    GkVkImage { handle: img, alloc, view, size }
 }
 
 #[allow(dead_code)]
@@ -636,7 +635,7 @@ fn float24_to_float32(w: usize, h: usize, input_data: &Vec<f32>) -> Vec<f32>
     output
 }
 
-pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std::path::PathBuf>) -> Result<SpVkImage, String>
+pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std::path::PathBuf>) -> Result<GkVkImage, String>
 {
     let mut correct_file_count = false;
     if file_names.len() == 1 { correct_file_count = true; }
@@ -650,32 +649,32 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
     // let mut width = 0;
     // let mut height = 0;
 
-    let cube: SpBitMap = if file_names.len() == 1
+    let cube: GkBitMap = if file_names.len() == 1
     {
-        let file = file_names[0].to_str().unwrap().as_ptr() as *const c_char;
-        let mut tex_width: c_int = 0;
-        let mut tex_height: c_int = 0;
-        let mut tex_channels: c_int = 0;
+        // let file = file_names[0].to_str().unwrap().as_ptr() as *const c_char;
+        // let mut tex_width: c_int = 0;
+        // let mut tex_height: c_int = 0;
+        // let mut tex_channels: c_int = 0;
 
-        let img_24 = unsafe 
-        { 
-            let data = stb_image::stbi_loadf(file, &mut tex_width, &mut tex_height, &mut tex_channels, 3);
-            std::slice::from_raw_parts_mut(data, (tex_width * tex_height * 3) as usize).to_vec()
-        };
-        let img_32 = float24_to_float32(tex_width as usize, tex_height as usize, &img_24);
+        // let img_24 = unsafe 
+        // { 
+        //     let data = stb_image::stbi_loadf(file, &mut tex_width, &mut tex_height, &mut tex_channels, 3);
+        //     std::slice::from_raw_parts_mut(data, (tex_width * tex_height * 3) as usize).to_vec()
+        // };
+        // let img_32 = float24_to_float32(tex_width as usize, tex_height as usize, &img_24);
 
-        // let img = image::codecs::hdr::read_raw_file(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
+        let img = image::codecs::hdr::read_raw_file(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
 
-        // let img = image::open(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
-        // let pixels = img.to_rgba8().into_raw();
-        // let pixels = img.to_rgba32f().into_raw();
+        let img = image::open(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
+        let pixels = img.to_rgba8().into_raw();
+        let pixels = img.to_rgba32f().into_raw();
 
         // width = img.width();
         // height = img.height();
 
-        // let bitmap_in = SpBitMap::new(img.width(), img.height(), Some(1), 4, &pixels);
-        // let bitmap_in = SpBitMap::new(img.width(), img.height(), Some(1), 4, sp_bitmap::EBitMapData::Float(pixels));
-        let bitmap_in = SpBitMap::new(tex_width as u32, tex_height as u32, None, 4, sp_bitmap::EBitMapData::Float(img_32));
+        // let bitmap_in = GkBitMap::new(img.width(), img.height(), Some(1), 4, &pixels);
+        let bitmap_in = GkBitMap::new(img.width(), img.height(), Some(1), 4, gk_bitmap::EBitMapData::Float(pixels));
+        // let bitmap_in = GkBitMap::new(tex_width as u32, tex_height as u32, None, 4, gk_bitmap::EBitMapData::Float(img_32));
         let bitmap_out = convert_equirectangle_to_vertical_cross(&bitmap_in);
 
         convert_vertical_cross_to_cubemap_faces(&bitmap_out)
@@ -690,8 +689,8 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
 
     let img_format = match cube.data
     {
-        sp_bitmap::EBitMapData::UByte(_) => vk::Format::R8G8B8A8_SRGB,
-        sp_bitmap::EBitMapData::Float(_) => vk::Format::R32G32B32A32_SFLOAT
+        gk_bitmap::EBitMapData::UByte(_) => vk::Format::R8G8B8A8_SRGB,
+        gk_bitmap::EBitMapData::Float(_) => vk::Format::R32G32B32A32_SFLOAT
     };
     let bytes_per_pixel = get_bytes_per_pixel_vk_format(img_format);
     let img_size : vk::DeviceSize = (cube.width * cube.height * bytes_per_pixel) as vk::DeviceSize * 6;
@@ -711,7 +710,7 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
 
     match cube.data
     {
-        sp_bitmap::EBitMapData::UByte(udata) =>
+        gk_bitmap::EBitMapData::UByte(udata) =>
         {
             unsafe
             {
@@ -719,7 +718,7 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
                 mapped_ptr.copy_from_nonoverlapping(udata.as_slice().as_ptr() as *const u8, udata.len());
             }
         }
-        sp_bitmap::EBitMapData::Float(fdata) =>
+        gk_bitmap::EBitMapData::Float(fdata) =>
         {
             unsafe
             {
@@ -735,7 +734,7 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
         vk::ImageTiling::OPTIMAL, vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
         1, vk::ImageCreateFlags::CUBE_COMPATIBLE);
 
-    let cmd_buffer = sp_begin_single_time_vk_command_buffer(vk_ctx);
+    let cmd_buffer = gk_begin_single_time_vk_command_buffer(vk_ctx);
 
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
@@ -755,7 +754,7 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
             vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, 
             6, 1);
 
-    sp_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+    gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
     unsafe
     {
@@ -769,17 +768,17 @@ pub fn sp_create_vk_cubemap_image(vk_ctx: &mut SpVkContext, file_names: Vec<std:
         vk::ImageViewType::CUBE, 
         6, 1);
 
-    Ok(SpVkImage { handle, alloc, view, size: img_size })
+    Ok(GkVkImage { handle, alloc, view, size: img_size })
 }
 
-/// ### fn sp_destroy_vk_img( ... )
-/// *Destroys the given instance of SpVkImage*
+/// ### fn gk_destroy_vk_img( ... )
+/// *Destroys the given instance of GkVkImage*
 /// <pre>
 /// - Param
-///     vk_ctx:     &mut SpVkContext
-///     img:        SpVkImage           <i>// SpVkImage to be destroyed.</i>
+///     vk_ctx:     &mut GkVkContext
+///     img:        GkVkImage           <i>// GkVkImage to be destroyed.</i>
 /// </pre>
-pub fn sp_destroy_vk_img(vk_ctx: &mut SpVkContext, img: SpVkImage)
+pub fn gk_destroy_vk_img(vk_ctx: &mut GkVkContext, img: GkVkImage)
 {
     unsafe
     {

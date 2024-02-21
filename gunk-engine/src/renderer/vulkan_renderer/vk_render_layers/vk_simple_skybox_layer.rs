@@ -6,21 +6,21 @@ use nalgebra_glm as glm;
 use memoffset;
 
 use crate::renderer::{
-    vulkan_renderer::sp_vulkan::{
-        splunk_vk_render_pass::{
-            SpVkRenderPass, SpVkRenderPassInfo, ERenderPassBit, 
-            sp_create_vk_renderpass, sp_destroy_vk_renderpass
+    vulkan_renderer::gk_vulkan::{
+        gunk_vk_render_pass::{
+            GkVkRenderPass, GkVkRenderPassInfo, ERenderPassBit, 
+            gk_create_vk_renderpass, gk_destroy_vk_renderpass
         }, 
-        splunk_vk_descriptor::{
-            SpVkDescriptor, sp_create_vk_desc_pool, 
+        gunk_vk_descriptor::{
+            GkVkDescriptor, gk_create_vk_desc_pool, 
             get_vk_desc_set_layout_binding, get_vk_buffer_write_desc_set, 
-            get_vk_image_write_desc_set, sp_destroy_vk_descriptor
+            get_vk_image_write_desc_set, gk_destroy_vk_descriptor
         }, 
-        splunk_vk_buffer::{map_vk_allocation_data, sp_create_vk_array_buffer, sp_create_vk_buffer, sp_destroy_vk_buffer, SpVkBuffer},
-        splunk_vk_img::{
-            create_vk_sampler, sp_create_vk_cubemap_image, sp_destroy_vk_img, SpVkImage
+        gunk_vk_buffer::{map_vk_allocation_data, gk_create_vk_array_buffer, gk_create_vk_buffer, gk_destroy_vk_buffer, GkVkBuffer},
+        gunk_vk_img::{
+            create_vk_sampler, gk_create_vk_cubemap_image, gk_destroy_vk_img, GkVkImage
         }, 
-        splunk_vk_context::{SpVkContext, sp_create_vk_color_depth_framebuffers, sp_destroy_vk_framebuffers}, 
+        gunk_vk_context::{GkVkContext, gk_create_vk_color_depth_framebuffers, gk_destroy_vk_framebuffers}, 
         vk_utils::{
             create_vk_pipeline_layout, create_vk_pipeline_info_vertex_input, 
             create_vk_pipeline_info_assembly, create_vk_pipeline_info_color_blend_attachment, 
@@ -29,14 +29,14 @@ use crate::renderer::{
             create_vk_pipeline_info_depth_stencil, create_vk_pipeline_info_dynamic_states, 
             create_vk_pipeline_info_tessellation
         }, 
-        vk_shader_utils::SpVkShaderModule
+        vk_shader_utils::GkVkShaderModule
     },
     renderer_utils::to_shader_path
 };
 
 use crate::{ vk_check, log_info, log_err };
 
-use super::sp_vk_render_layer::{ SpVkLayerDraw, SpVk3dLayerUpdate };
+use super::gk_vk_render_layer::{ GkVkLayerDraw, GkVk3dLayerUpdate };
 
 #[derive(Clone)]
 pub struct SkyBoxVertex
@@ -120,35 +120,35 @@ fn get_z_up_matrix() -> glm::Mat4
 
 pub struct VkSimpleSkyBoxLayer
 {
-    renderpass:         SpVkRenderPass,
+    renderpass:         GkVkRenderPass,
     framebuffers:       Vec<vk::Framebuffer>,
-    descriptor:         SpVkDescriptor,
+    descriptor:         GkVkDescriptor,
     pipeline_layout:    vk::PipelineLayout,
     pipeline:           vk::Pipeline,
-    triangle_verts:     Option<SpVkBuffer>,
-    triangle_indices:   Option<SpVkBuffer>,
-    texture:            Option<SpVkImage>,
+    triangle_verts:     Option<GkVkBuffer>,
+    triangle_indices:   Option<GkVkBuffer>,
+    texture:            Option<GkVkImage>,
     sampler:            vk::Sampler,
     model_space:        glm::Mat4,
-    model_space_buffer: Option<SpVkBuffer>,
+    model_space_buffer: Option<GkVkBuffer>,
 }
 
 impl VkSimpleSkyBoxLayer
 {
     pub fn new(
             instance: &ash::Instance,
-            vk_ctx: &mut SpVkContext,
-            camera_uniforms: &Vec<SpVkBuffer>,
-            depth_img: &SpVkImage,
+            vk_ctx: &mut GkVkContext,
+            camera_uniforms: &Vec<GkVkBuffer>,
+            depth_img: &GkVkImage,
             texture_files: Vec<std::path::PathBuf>
         ) -> Self
     {
         log_info!("Creating SimpleSkyBoxLayer...");
-        // let texture = sp_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
-        let texture = sp_create_vk_cubemap_image(vk_ctx, texture_files).map_err(|err| { log_err!(err); panic!("Error creating vk cubemap image\n") }).unwrap();
+        // let texture = gk_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
+        let texture = gk_create_vk_cubemap_image(vk_ctx, texture_files).map_err(|err| { log_err!(err); panic!("Error creating vk cubemap image\n") }).unwrap();
         let sampler = create_vk_sampler(&vk_ctx.device);
         
-        let renderpass_info = SpVkRenderPassInfo{
+        let renderpass_info = GkVkRenderPassInfo{
             b_use_color: true,
             b_clear_color: false,
             b_use_depth: true,
@@ -157,10 +157,10 @@ impl VkSimpleSkyBoxLayer
             flags: ERenderPassBit::NONE,
             samples: vk::SampleCountFlags::TYPE_1
         };
-        let renderpass = sp_create_vk_renderpass(instance, vk_ctx, renderpass_info);
+        let renderpass = gk_create_vk_renderpass(instance, vk_ctx, renderpass_info);
         
         let model_space = get_z_up_matrix();
-        let model_space_buffer = Some(sp_create_vk_buffer(
+        let model_space_buffer = Some(gk_create_vk_buffer(
             vk_ctx, "Simple_SkyBox_model_space", 
             vk::BufferUsageFlags::UNIFORM_BUFFER,
             MemoryLocation::CpuToGpu, 
@@ -169,13 +169,13 @@ impl VkSimpleSkyBoxLayer
 
         let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler, model_space_buffer.as_ref().unwrap());
 
-        let framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
+        let framebuffers = gk_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
 
         let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, &Vec::new());
 
-        let mut shader_modules: Vec<SpVkShaderModule> = vec![
-            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("SimpleSkyBox.vert").as_path()),
-            SpVkShaderModule::new(&vk_ctx.device, to_shader_path("SimpleSkyBox.frag").as_path())
+        let mut shader_modules: Vec<GkVkShaderModule> = vec![
+            GkVkShaderModule::new(&vk_ctx.device, to_shader_path("SimpleSkyBox.vert").as_path()),
+            GkVkShaderModule::new(&vk_ctx.device, to_shader_path("SimpleSkyBox.frag").as_path())
         ];
 
         let pipeline = Self::create_pipeline(
@@ -190,8 +190,8 @@ impl VkSimpleSkyBoxLayer
             shader.destroy(&vk_ctx.device);
         }
 
-        let triangle_verts = sp_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Sky Verts", vk::BufferUsageFlags::VERTEX_BUFFER, &SKYBOX_VERTICES_DATA.to_vec());
-        let triangle_indices = sp_create_vk_array_buffer::<u32>(vk_ctx, "Sky Indices", vk::BufferUsageFlags::INDEX_BUFFER, &SKYBOX_INDICES_DATA.to_vec());
+        let triangle_verts = gk_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Sky Verts", vk::BufferUsageFlags::VERTEX_BUFFER, &SKYBOX_VERTICES_DATA.to_vec());
+        let triangle_indices = gk_create_vk_array_buffer::<u32>(vk_ctx, "Sky Indices", vk::BufferUsageFlags::INDEX_BUFFER, &SKYBOX_INDICES_DATA.to_vec());
 
         log_info!("SimpleSkyBoxLayer created.");
     
@@ -212,14 +212,14 @@ impl VkSimpleSkyBoxLayer
     }
 
     fn create_desc_sets(
-            vk_ctx: &SpVkContext,
-            camera_uniforms: &Vec<SpVkBuffer>,
-            texture: &SpVkImage,
+            vk_ctx: &GkVkContext,
+            camera_uniforms: &Vec<GkVkBuffer>,
+            texture: &GkVkImage,
             sampler: &vk::Sampler,
-            model_space_buffer: &SpVkBuffer
-        ) -> SpVkDescriptor
+            model_space_buffer: &GkVkBuffer
+        ) -> GkVkDescriptor
     {
-        let pool = sp_create_vk_desc_pool(vk_ctx, 2, 0, 1);
+        let pool = gk_create_vk_desc_pool(vk_ctx, 2, 0, 1);
 
         let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
             get_vk_desc_set_layout_binding(0, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
@@ -270,7 +270,7 @@ impl VkSimpleSkyBoxLayer
             }
         }
 
-        SpVkDescriptor
+        GkVkDescriptor
         { 
             layouts, 
             pool, 
@@ -279,9 +279,9 @@ impl VkSimpleSkyBoxLayer
     }
 
     fn create_pipeline(
-            vk_ctx: &SpVkContext,
-            shader_modules: &mut Vec<SpVkShaderModule>,
-            renderpass: &SpVkRenderPass,
+            vk_ctx: &GkVkContext,
+            shader_modules: &mut Vec<GkVkShaderModule>,
+            renderpass: &GkVkRenderPass,
             layout: &vk::PipelineLayout,
             custom_extent: Option<vk::Extent2D>
         ) -> vk::Pipeline    
@@ -386,7 +386,7 @@ impl VkSimpleSkyBoxLayer
         pipeline
     }
 
-    fn draw(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer)
+    fn draw(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer)
     {
         unsafe{
             vk_ctx.device.cmd_bind_vertex_buffers(*cmd_buffer, 0, &[self.triangle_verts.as_ref().unwrap().handle], &[0 as vk::DeviceSize]);
@@ -402,27 +402,27 @@ impl VkSimpleSkyBoxLayer
 
 }
 
-impl SpVkLayerDraw for VkSimpleSkyBoxLayer
+impl GkVkLayerDraw for VkSimpleSkyBoxLayer
 {
-    fn draw_frame(&self, vk_ctx: &SpVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
+    fn draw_frame(&self, vk_ctx: &GkVkContext, cmd_buffer: &vk::CommandBuffer, current_image: usize)
     {
         self.begin_renderpass(vk_ctx, cmd_buffer, &self.renderpass, self.pipeline, self.framebuffers[current_image]);
         self.draw(vk_ctx, cmd_buffer);
         self.end_renderpass(vk_ctx, cmd_buffer);
     }
 
-    fn destroy(&mut self, vk_ctx: &mut SpVkContext) 
+    fn destroy(&mut self, vk_ctx: &mut GkVkContext) 
     {
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
-        sp_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
-        sp_destroy_vk_buffer(vk_ctx, self.model_space_buffer.take().unwrap());
-        sp_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
+        gk_destroy_vk_buffer(vk_ctx, self.triangle_verts.take().unwrap());
+        gk_destroy_vk_buffer(vk_ctx, self.triangle_indices.take().unwrap());
+        gk_destroy_vk_buffer(vk_ctx, self.model_space_buffer.take().unwrap());
+        gk_destroy_vk_img(vk_ctx, self.texture.take().unwrap());
         unsafe { vk_ctx.device.destroy_sampler(self.sampler, None); }
 
-        sp_destroy_vk_descriptor(vk_ctx, &self.descriptor);
+        gk_destroy_vk_descriptor(vk_ctx, &self.descriptor);
         
         self.cleanup_framebuffers(&vk_ctx.device);
-        sp_destroy_vk_renderpass(vk_ctx, &self.renderpass);
+        gk_destroy_vk_renderpass(vk_ctx, &self.renderpass);
         unsafe {
             vk_ctx.device.destroy_pipeline_layout(self.pipeline_layout, None);
             vk_ctx.device.destroy_pipeline(self.pipeline, None);
@@ -431,19 +431,19 @@ impl SpVkLayerDraw for VkSimpleSkyBoxLayer
 
     fn cleanup_framebuffers(&mut self, device: &ash::Device)
     {
-        sp_destroy_vk_framebuffers(device, &mut self.framebuffers);   
+        gk_destroy_vk_framebuffers(device, &mut self.framebuffers);   
     }
 
-    fn recreate_framebuffers(&mut self, vk_ctx: &SpVkContext, depth_img: Option<&SpVkImage>)
+    fn recreate_framebuffers(&mut self, vk_ctx: &GkVkContext, depth_img: Option<&GkVkImage>)
     {
-        self.framebuffers = sp_create_vk_color_depth_framebuffers(vk_ctx, &self.renderpass, &depth_img.unwrap().view);
+        self.framebuffers = gk_create_vk_color_depth_framebuffers(vk_ctx, &self.renderpass, &depth_img.unwrap().view);
     }
 
 }
 
-impl SpVk3dLayerUpdate for VkSimpleSkyBoxLayer
+impl GkVk3dLayerUpdate for VkSimpleSkyBoxLayer
 {
-    fn update(&mut self, _vk_ctx: &SpVkContext, _transform_uniform: &SpVkBuffer, _delta_time: f32)
+    fn update(&mut self, _vk_ctx: &GkVkContext, _transform_uniform: &GkVkBuffer, _delta_time: f32)
     {
         // update
         map_vk_allocation_data::<glm::Mat4>(&self.model_space_buffer.as_ref().unwrap().allocation, &[self.model_space], 1);
