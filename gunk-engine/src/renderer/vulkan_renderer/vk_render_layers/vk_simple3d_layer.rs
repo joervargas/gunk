@@ -7,7 +7,7 @@ use gpu_allocator::MemoryLocation;
 use nalgebra_glm as glm;
 
 use crate::renderer::renderer_utils::to_shader_path;
-use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_buffer::{map_vk_allocation_data, gk_create_vk_buffer, gk_destroy_vk_buffer, GkVkBuffer};
+use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_buffer::{gk_create_vk_buffer, gk_create_vk_vertex_buffer_from_file, gk_destroy_vk_buffer, map_vk_allocation_data, GkVkBuffer};
 use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_context::{gk_destroy_vk_framebuffers, gk_create_vk_color_depth_framebuffers};
 use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_descriptor::{GkVkDescriptor, gk_create_vk_desc_pool, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, get_vk_buffer_write_desc_set, gk_destroy_vk_descriptor};
 use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_img::{GkVkImage, gk_create_vk_image, create_vk_sampler, gk_destroy_vk_img};
@@ -177,7 +177,7 @@ impl VkSimple3dLayer
 
         // let triangle_verts = gk_create_vk_array_buffer::<Simple3dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
         // let triangle_indices = gk_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
-        // let (mesh_verts, mesh_indices) = gk_create_vk_vertex_buffer_from_file(vk_ctx, "mesh", mesh_file);
+        let (mesh_verts, mesh_indices) = gk_create_vk_vertex_buffer_from_file(vk_ctx, "mesh", mesh_file);
 
         log_info!("Simple3dLayer created.");
         Self
@@ -187,10 +187,10 @@ impl VkSimple3dLayer
             descriptor,
             pipeline_layout,
             pipeline,
-            // mesh_verts: Some(mesh_verts),
-            // mesh_indices: Some(mesh_indices),
-            mesh_verts: None,
-            mesh_indices: None,
+            mesh_verts,
+            mesh_indices,
+            // mesh_verts: None,
+            // mesh_indices: None,
             texture: Some(texture),
             sampler,
             model_space,

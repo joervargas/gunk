@@ -1,7 +1,4 @@
-
 use ash::{self, vk::{self, MemoryMapFlags}};
-
-use nalgebra_glm as glm;
 
 
 use gpu_allocator::{vulkan::{
@@ -11,8 +8,10 @@ use gpu_allocator::{vulkan::{
     AllocationScheme
 }, MemoryLocation};
 
-use crate::{vk_check, log_err, check_err};
-use crate::renderer::vulkan_renderer::gk_vulkan::vertex_data::{self, VertexData};
+use tobj;
+
+use crate::{vk_check, log_err};
+use crate::renderer::vulkan_renderer::gk_vulkan::vertex_data::VertexData;
 
 use crate::renderer::vulkan_renderer::gk_vulkan::gunk_vk_context::{
     gk_begin_single_time_vk_command_buffer, 
@@ -335,130 +334,145 @@ pub fn gk_create_vk_array_buffer<T>(
     buffer
 }
 
-// /// ### fn gk_create_vk_vertex_buffer_from_file\<T\>( ... ) -> GkVkBuffer
-// /// *Reads 3d format file and creates a vertex buffer using type T*<br>
-// /// *T is Type of Vertex Data*<br>
-// /// *Populates vert and index buffer sizes*
-// /// <pre>
-// /// - Params
-// ///     vk_ctx:             <b>&mut</b> GkVkContext
-// ///     label:              &str                    <i>// Used for debug purposes<i>
-// ///     usage:              vk::BufferUsageFlags
-// ///     file_path:          &path::Path
-// /// - Return
-// ///     (GkVkBuffer, GkVkBuffer) <i>// (vertex_buffer, index_buffer)
-// /// </pre>
-// pub fn gk_create_vk_vertex_buffer_from_file(
-//         vk_ctx: &mut GkVkContext, 
-//         label: &str, 
-//         file_path: &std::path::Path,
-//     ) -> (GkVkBuffer, GkVkBuffer)
-// {
-//     // let scene_flags = vec![
-//     //     PostProcess::Triangulate
-//     // ];
-//     // let scene = check_err!(Scene::from_file(file_path.to_str().unwrap(), scene_flags)).unwrap();
-//     if scene.meshes.is_empty()
-//     {
-//         log_err!("unable to load {}", file_path.to_str().unwrap());
-//     }
+/// ### fn gk_create_vk_vertex_buffer_from_file\<T\>( ... ) -> GkVkBuffer
+/// *Reads 3d format file and creates a vertex buffer using type T*<br>
+/// *T is Type of Vertex Data*<br>
+/// *Populates vert and index buffer sizes*
+/// <pre>
+/// - Params
+///     vk_ctx:             <b>&mut</b> GkVkContext
+///     label:              &str                    <i>// Used for debug purposes<i>
+///     usage:              vk::BufferUsageFlags
+///     file_path:          &path::Path
+/// - Return
+///     (GkVkBuffer, GkVkBuffer) <i>// (vertex_buffer, index_buffer)
+/// </pre>
+pub fn gk_create_vk_vertex_buffer_from_file(
+        vk_ctx: &mut GkVkContext, 
+        label: &str, 
+        file_path: &std::path::Path,
+    ) -> (Option<GkVkBuffer>, Option<GkVkBuffer>)
+{
+    let load_options = tobj::LoadOptions { 
+        single_index: true, 
+        triangulate: false, 
+        ignore_points: true, 
+        ignore_lines: true 
+    };
+    let (models, _materials) = match tobj::load_obj(file_path, &load_options)
+    {
+        Ok(data) => 
+        {
+            if let Ok(materials) = data.1 {
+                (data.0, Some(materials))
+            } else {
+                (data.0, None)
+            }
+        },
+        Err(err) => { log_err!(err.to_string()); return (None, None); }
+    };
 
-//     let mesh = scene.meshes.first().unwrap();
-//     let mut vertices: Vec<vertex_data::VertexData> = Vec::new();
-//     let mut indices: Vec<u32> = Vec::new();
-//     for (i, v) in mesh.vertices.iter().enumerate()
-//     {
-//         let t = mesh.texture_coords[0].as_ref().unwrap()[i];
-//         // let n = mesh.normals[i];
-//         // let c = mesh.colors[0].as_ref().unwrap()[i];
-//         // vertices.push( VertexData::new(glm::vec3(v.x, v.y, v.z), glm::vec2(t.x, 1.0 - t.y)));
-//         vertices.push(
-//             VertexData::new(
-//                 glm::vec3(v.x, v.y, v.z),
-//                 glm::vec3(0.5, 0.5, 0.5),
-//                 glm::vec2(t.x, 1.0 - t.y)
-//             )
-//         );
-    
-//         indices.push(indices.len() as u32);
-//     }
+    let mut vertices: Vec<VertexData> = vec![];
+    let mut indices: Vec<u32> = vec![];
 
-//     // for face in mesh.faces.iter()
-//     // {
-//     //     for f in face.0.iter()
-//     //     {
-//     //         indices.push(*f);
-//     //     }
-//     // }
-//     drop(scene);
+    for m in models.iter()
+    {
+        let mesh = &m.mesh;
 
-//     let vert_buffer_size = std::mem::size_of::<VertexData>() * vertices.len();
-//     let index_buffer_size = std::mem::size_of::<u32>() * indices.len();
+        if mesh.texcoords.len() == 0
+        {
+            log_err!(format!("Missing texture coordinates for {}", file_path.to_str().unwrap()));
+            return (None, None);
+        }
+        
+        let total_vertices_count = mesh.positions.len() / 3;
+        for i in 0..total_vertices_count
+        {
+            let vertex = VertexData
+            {
+                pos: [
+                    mesh.positions[i * 3],
+                    mesh.positions[i * 3 + 1],
+                    mesh.positions[i * 3 + 2]
+                ],
+                color: [ 0.5, 0.5, 0.5 ],
+                tex_coord: [
+                    mesh.texcoords[ i * 2 ],
+                    -mesh.texcoords[ i * 2 + 1]
+                ]
+            };
+            vertices.push(vertex);
+        }
+        indices = mesh.indices.clone();
+    }
 
-//     // let buffer_size = (vert_buffer_size + index_buffer_size) as vk::DeviceSize;
-//     let staging_vert_label = String::from(format!("staging vert{}", label));
+    let vert_buffer_size = std::mem::size_of::<VertexData>() * vertices.len();
+    let index_buffer_size = std::mem::size_of::<u32>() * indices.len();
 
-//     let staging_vertex = gk_create_vk_buffer(
-//         vk_ctx, 
-//         &staging_vert_label, 
-//         vk::BufferUsageFlags::TRANSFER_SRC, 
-//         MemoryLocation::CpuToGpu, 
-//         vert_buffer_size as vk::DeviceSize
-//     );
+    // let buffer_size = (vert_buffer_size + index_buffer_size) as vk::DeviceSize;
+    let staging_vert_label = String::from(format!("staging vert{}", label));
 
-//     unsafe
-//     {
-//         // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_vertex.allocation.memory(), staging_vertex.allocation.offset(), vert_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
-//         let mapped_ptr = staging_vertex.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
-//             mapped_ptr.copy_from_nonoverlapping(vertices.as_slice().as_ptr() as *const u8, vert_buffer_size);
-//         // vk_ctx.device.unmap_memory(staging_vertex.allocation.memory());
-//     }
+    let staging_vertex = gk_create_vk_buffer(
+        vk_ctx, 
+        &staging_vert_label, 
+        vk::BufferUsageFlags::TRANSFER_SRC, 
+        MemoryLocation::CpuToGpu, 
+        vert_buffer_size as vk::DeviceSize
+    );
 
-//     let staging_index_label = String::from(format!("staging index{}", label));
-//     let staging_indices = gk_create_vk_buffer(
-//         vk_ctx, 
-//         &staging_index_label, 
-//         vk::BufferUsageFlags::TRANSFER_SRC,
-//         MemoryLocation::CpuToGpu,
-//         index_buffer_size as vk::DeviceSize
-//     );
+    unsafe
+    {
+        // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_vertex.allocation.memory(), staging_vertex.allocation.offset(), vert_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        let mapped_ptr = staging_vertex.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
+            mapped_ptr.copy_from_nonoverlapping(vertices.as_slice().as_ptr() as *const u8, vert_buffer_size);
+        // vk_ctx.device.unmap_memory(staging_vertex.allocation.memory());
+    }
 
-//     unsafe
-//     {
-//         // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_indices.allocation.memory(), staging_indices.allocation.offset(), index_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
-//         let mapped_ptr = staging_indices.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
-//             mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, index_buffer_size);
-//         // vk_ctx.device.unmap_memory(staging_indices.allocation.memory());
-//     }
+    let staging_index_label = String::from(format!("staging index{}", label));
+    let staging_indices = gk_create_vk_buffer(
+        vk_ctx, 
+        &staging_index_label, 
+        vk::BufferUsageFlags::TRANSFER_SRC,
+        MemoryLocation::CpuToGpu,
+        index_buffer_size as vk::DeviceSize
+    );
 
-//     let vert_label = String::from(format!("vertex {}", label));
-//     let vert_buffer = gk_create_vk_buffer(
-//         vk_ctx,
-//         &vert_label, 
-//         vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
-//         MemoryLocation::GpuOnly,
-//         vert_buffer_size as vk::DeviceSize
-//     );
+    unsafe
+    {
+        // let mapped_ptr = vk_check!( vk_ctx.device.map_memory(staging_indices.allocation.memory(), staging_indices.allocation.offset(), index_buffer_size as vk::DeviceSize, MemoryMapFlags::empty()) ).unwrap() as *mut u8;
+        let mapped_ptr = staging_indices.allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
+            mapped_ptr.copy_from_nonoverlapping(indices.as_slice().as_ptr() as *const u8, index_buffer_size);
+        // vk_ctx.device.unmap_memory(staging_indices.allocation.memory());
+    }
 
-//     let index_label = String::from(format!("index {}", label));
-//     let index_buffer = gk_create_vk_buffer(
-//         vk_ctx,
-//         &index_label,
-//         vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
-//         MemoryLocation::GpuOnly,
-//         index_buffer_size as vk::DeviceSize
-//     );
+    let vert_label = String::from(format!("vertex {}", label));
+    let vert_buffer = gk_create_vk_buffer(
+        vk_ctx,
+        &vert_label, 
+        vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        MemoryLocation::GpuOnly,
+        vert_buffer_size as vk::DeviceSize
+    );
 
-//     let cmd_buffer = gk_begin_single_time_vk_command_buffer(vk_ctx);
-//         copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_vertex.handle, &vert_buffer.handle, vert_buffer_size as vk::DeviceSize);
-//         copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_indices.handle, &index_buffer.handle, index_buffer_size as vk::DeviceSize);
-//     gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
+    let index_label = String::from(format!("index {}", label));
+    let index_buffer = gk_create_vk_buffer(
+        vk_ctx,
+        &index_label,
+        vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        MemoryLocation::GpuOnly,
+        index_buffer_size as vk::DeviceSize
+    );
 
-//     gk_destroy_vk_buffer(vk_ctx, staging_vertex);
-//     gk_destroy_vk_buffer(vk_ctx, staging_indices);
+    let cmd_buffer = gk_begin_single_time_vk_command_buffer(vk_ctx);
+        copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_vertex.handle, &vert_buffer.handle, vert_buffer_size as vk::DeviceSize);
+        copy_vk_buffer(&vk_ctx.device, &cmd_buffer, &staging_indices.handle, &index_buffer.handle, index_buffer_size as vk::DeviceSize);
+    gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);
 
-//     (vert_buffer, index_buffer)
-// }
+    gk_destroy_vk_buffer(vk_ctx, staging_vertex);
+    gk_destroy_vk_buffer(vk_ctx, staging_indices);
+
+    (Some(vert_buffer), Some(index_buffer))
+}
 
 pub struct GkVkVertStorageBuffer
 {

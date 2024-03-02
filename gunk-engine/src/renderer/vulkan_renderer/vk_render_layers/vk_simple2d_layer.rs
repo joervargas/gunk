@@ -123,12 +123,12 @@ impl VkSimple2dLayer
             b_clear_color: false,
             b_use_depth: false,
             b_clear_depth: false,
-            color_format: vk::Format::B8G8R8A8_UNORM,
+            color_format: vk_ctx.swapchain.format,
             flags: ERenderPassBit::NONE,
             samples: vk::SampleCountFlags::TYPE_1
         };
         let renderpass = gk_create_vk_renderpass(instance, vk_ctx, renderpass_info);
-        
+
         let descriptor = Self::create_desc_sets(vk_ctx, &texture, &sampler);
 
         let framebuffers = gk_create_vk_color_only_framebuffers(&vk_ctx, &renderpass);
@@ -154,7 +154,7 @@ impl VkSimple2dLayer
         // create buffers
         let triangle_verts = gk_create_vk_array_buffer::<Simple2dVertex>(vk_ctx, "Triangle", vk::BufferUsageFlags::VERTEX_BUFFER, &VERTICES_DATA.to_vec());
         let triangle_indices = gk_create_vk_array_buffer::<u32>(vk_ctx, "Triangle Indices", vk::BufferUsageFlags::INDEX_BUFFER, &INDICES_DATA.to_vec());
-        
+
         log_info!("Simple2dLayer created.");
         Self
         {

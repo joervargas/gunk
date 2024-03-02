@@ -147,7 +147,7 @@ impl VkSimpleSkyBoxLayer
         // let texture = gk_create_vk_image(vk_ctx, texture_file.to_str().unwrap());
         let texture = gk_create_vk_cubemap_image(vk_ctx, texture_files).map_err(|err| { log_err!(err); panic!("Error creating vk cubemap image\n") }).unwrap();
         let sampler = create_vk_sampler(&vk_ctx.device);
-        
+
         let renderpass_info = GkVkRenderPassInfo{
             b_use_color: true,
             b_clear_color: false,
@@ -158,6 +158,7 @@ impl VkSimpleSkyBoxLayer
             samples: vk::SampleCountFlags::TYPE_1
         };
         let renderpass = gk_create_vk_renderpass(instance, vk_ctx, renderpass_info);
+        let framebuffers = gk_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
         
         let model_space = get_z_up_matrix();
         let model_space_buffer = Some(gk_create_vk_buffer(
@@ -168,8 +169,6 @@ impl VkSimpleSkyBoxLayer
         ));
 
         let descriptor = Self::create_desc_sets(vk_ctx, camera_uniforms, &texture, &sampler, model_space_buffer.as_ref().unwrap());
-
-        let framebuffers = gk_create_vk_color_depth_framebuffers(vk_ctx, &renderpass, &depth_img.view);
 
         let pipeline_layout = create_vk_pipeline_layout(&vk_ctx.device, &descriptor.layouts, &Vec::new());
 
@@ -192,6 +191,8 @@ impl VkSimpleSkyBoxLayer
 
         let triangle_verts = gk_create_vk_array_buffer::<SkyBoxVertex>(vk_ctx, "Sky Verts", vk::BufferUsageFlags::VERTEX_BUFFER, &SKYBOX_VERTICES_DATA.to_vec());
         let triangle_indices = gk_create_vk_array_buffer::<u32>(vk_ctx, "Sky Indices", vk::BufferUsageFlags::INDEX_BUFFER, &SKYBOX_INDICES_DATA.to_vec());
+
+        map_vk_allocation_data::<glm::Mat4>(&model_space_buffer.as_ref().unwrap().allocation, &[model_space], 1);
 
         log_info!("SimpleSkyBoxLayer created.");
     
@@ -335,7 +336,7 @@ impl VkSimpleSkyBoxLayer
         ];
         let viewport_info = create_vk_pipeline_info_viewport(viewports, scissors);        
 
-        let rasterizer_info = create_vk_pipeline_info_rasterization(vk::PolygonMode::FILL, vk::CullModeFlags::BACK, vk::FrontFace::COUNTER_CLOCKWISE, 1.0);
+        let rasterizer_info = create_vk_pipeline_info_rasterization(vk::PolygonMode::FILL, vk::CullModeFlags::NONE, vk::FrontFace::CLOCKWISE, 1.0);
         let multisampling_info = create_vk_pipeline_info_multisample(vk::SampleCountFlags::TYPE_1, vk::FALSE, 1.0);
         
         let color_attachments: Vec<vk::PipelineColorBlendAttachmentState> = vec![

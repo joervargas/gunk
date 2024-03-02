@@ -8,7 +8,8 @@ use crate::log_err;
 
 use super::gk_bitmap::{
     GkBitMap, EBitMapType,
-    EBitMapData, EBitMapDataMutPtr, EBitMapDataPtr, 
+    EBitMapFormat
+    // EBitMapData, EBitMapDataMutPtr, EBitMapDataPtr,
 };
 // use crate::renderer::bitmap::BitMapScalar;
 
@@ -163,24 +164,25 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &GkBitMap) -> GkBitMap
     let w = face_size * 3;
     let h = face_size * 4;
 
-    let d = match bitmap.data
-    {
-        EBitMapData::UByte(_) => {
-            let mut u: Vec<u8> = Vec::new();
-            // u.reserve(udata.len())
-            let size = (w * h) as usize * bitmap.channels * bitmap.get_bytes_per_component();
-            u.reserve(size);
-            EBitMapData::UByte(u)
-        },
-        EBitMapData::Float(_) => {
-            let mut f: Vec<f32> = Vec::new();
-            // f.reserve(fdata.len());
-            let size = (w * h) as usize * bitmap.channels;
-            f.reserve(size);
-            EBitMapData::Float(f)
-        }
-    };
-    let mut result = GkBitMap::new(w as u32, h as u32, None, bitmap.channels, d);
+    // let d = match bitmap.data
+    // {
+    //     EBitMapData::UByte(_) => {
+    //         let mut u: Vec<u8> = Vec::new();
+    //         // u.reserve(udata.len())
+    //         let size = (w * h) as usize * bitmap.channels * bitmap.get_bytes_per_component();
+    //         u.reserve(size);
+    //         EBitMapData::UByte(u)
+    //     },
+    //     EBitMapData::Float(_) => {
+    //         let mut f: Vec<f32> = Vec::new();
+    //         // f.reserve(fdata.len());
+    //         let size = (w * h) as usize * bitmap.channels;
+    //         f.reserve(size);
+    //         EBitMapData::Float(f)
+    //     }
+    // };
+    // let mut result = GkBitMap::new(w as u32, h as u32, None, bitmap.channels, d);
+    let mut result = GkBitMap::new(w as u32, h as u32, 1, bitmap.channels, bitmap.format, Vec::new());
 
     let face_offsets : Vec<glm::IVec2> = vec![
         IVec2::new(face_size, face_size * 3),
@@ -221,7 +223,10 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &GkBitMap) -> GkBitMap
                 let c: glm::Vec4 = bitmap.get_pixel(u1, v2);
                 let d: glm::Vec4 = bitmap.get_pixel(u2, v2);
                 // bilinear interpolation
-                let color: glm::Vec4 = a * (1.0 - s) * (1.0 - t) + b * (s) * (1.0 - t) + c * (1.0 - s) * t + d * (s) * (t);
+                let color: glm::Vec4 =  a * (1.0 - s) * (1.0 - t) + 
+                                        b * (s) * (1.0 - t) + 
+                                        c * (1.0 - s) * t + 
+                                        d * (s) * (t);
                 result.set_pixel(i + face_offsets[face as usize].x, j + face_offsets[face as usize].y , &color);
             } // j
         } // i
@@ -235,31 +240,36 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &GkBitMap) -> GkBitMap
     let face_width = bitmap.width / 3;
     let face_height = bitmap.height / 4;
 
-    let d = match bitmap.data
-    {
-        EBitMapData::UByte(_) => {
-            let mut u: Vec<u8> = Vec::new();
-            // u.reserve(udata.len())
-            let size = (face_width * face_height) as usize * bitmap.channels * bitmap.get_bytes_per_component() * 6;
-            u.reserve(size);
-            EBitMapData::UByte(u)
-        },
-        EBitMapData::Float(_) => {
-            let mut f: Vec<f32> = Vec::new();
-            // f.reserve(fdata.len());
-            let size = (face_width * face_height) as usize * bitmap.channels * 6;
-            f.reserve(size);
-            EBitMapData::Float(f)
-        }
-    };
-    let mut cubemap = GkBitMap::new(face_width, face_height, Some(6), bitmap.channels, d);
+    // let d = match bitmap.data
+    // {
+    //     EBitMapData::UByte(_) => {
+    //         let mut u: Vec<u8> = Vec::new();
+    //         // u.reserve(udata.len())
+    //         let size = (face_width * face_height) as usize * bitmap.channels * bitmap.get_bytes_per_component() * 6;
+    //         u.reserve(size);
+    //         EBitMapData::UByte(u)
+    //     },
+    //     EBitMapData::Float(_) => {
+    //         let mut f: Vec<f32> = Vec::new();
+    //         // f.reserve(fdata.len());
+    //         let size = (face_width * face_height) as usize * bitmap.channels * 6;
+    //         f.reserve(size);
+    //         EBitMapData::Float(f)
+    //     }
+    // };
+    // let mut cubemap = GkBitMap::new(face_width, face_height, Some(6), bitmap.channels, d);
+    let mut cubemap = GkBitMap::new(face_width, face_height, 6, bitmap.channels, bitmap.format, Vec::new());
 
-    let pixel_size = cubemap.channels * cubemap.get_bytes_per_component();
+    // let pixel_size = cubemap.channels;
     // let src = bitmap.data.as_ptr();
     // let dst = cubemap.data.as_mut_ptr();
 
-    let src = bitmap.get_data_ptr();
-    let dst = cubemap.get_data_mut_ptr();
+    // let src = bitmap.get_data_ptr();
+    // let dst = cubemap.get_data_mut_ptr();
+    let src_ptr = bitmap.data.as_ptr();
+    let dst_ptr = cubemap.data.as_mut_ptr();
+
+    let pixel_size = cubemap.channels * GkBitMap::get_bytes_per_component(&cubemap.format);
 
     let mut dst_offset: isize = 0;
 
@@ -314,23 +324,24 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &GkBitMap) -> GkBitMap
                 }
                 let src_offset = (y * bitmap.width + x) as isize * pixel_size as isize;
                 // unsafe { std::ptr::copy_nonoverlapping(src.offset(src_offset), dst.offset(dst_offset),pixel_size); }
-                unsafe{
-                    match src
-                    {
-                        EBitMapDataPtr::UBytePtr(src_ptr) => {
-                            if let EBitMapDataMutPtr::UByteMutPtr(dst_mut_ptr) = dst
-                            {
-                                std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
-                            }
-                        }
-                        EBitMapDataPtr::FloatPtr(src_ptr) => {
-                            if let EBitMapDataMutPtr::FloatMutPtr(dst_mut_ptr) = dst
-                            {
-                                std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
-                            }
-                        }
-                    }
-                }
+                // unsafe{
+                //     match src
+                //     {
+                //         EBitMapDataPtr::UBytePtr(src_ptr) => {
+                //             if let EBitMapDataMutPtr::UByteMutPtr(dst_mut_ptr) = dst
+                //             {
+                //                 std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
+                //             }
+                //         }
+                //         EBitMapDataPtr::FloatPtr(src_ptr) => {
+                //             if let EBitMapDataMutPtr::FloatMutPtr(dst_mut_ptr) = dst
+                //             {
+                //                 std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
+                //             }
+                //         }
+                //     }
+                // }
+                unsafe{ std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_ptr.offset(dst_offset), pixel_size); }
                 dst_offset += pixel_size as isize;
             } // i
         } // j
@@ -380,7 +391,8 @@ pub fn convert_multi_file_to_cubemap_faces(files: &Vec<std::path::PathBuf>) -> R
     // *width = img_width;
     // *height = img_height;
 
-    let result: GkBitMap = GkBitMap::new(img_width, img_height, Some(6), 4, EBitMapData::UByte(img_data));
+    // let result: GkBitMap = GkBitMap::new(img_width, img_height, Some(6), 4, EBitMapData::UByte(img_data));
+    let result: GkBitMap = GkBitMap::new(img_width, img_height, 6, 4, EBitMapFormat::UByte, img_data);
 
     Ok(result)
 }

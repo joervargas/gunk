@@ -13,6 +13,7 @@ use super::gk_vulkan::{
     gunk_vk_context::GkVkContext
 };
 use super::vk_render_layers::gk_vk_render_layer::{Vk2dLayerList, Vk3dLayerList, GkVk2dLayerUpdate, GkVk3dLayerUpdate};
+
 use super::vk_render_layers::vk_simple3d_layer::VkSimple3dLayer;
 use super::vk_render_layers::vk_simple_skybox_layer::VkSimpleSkyBoxLayer;
 use super::vk_render_layers::{
@@ -101,7 +102,8 @@ impl VulkanRenderer
 
         let layers2d = Vk2dLayerList::new();
         // layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/statue.jpg"))) );
-
+        // layers2d.push( Box::new(VkSimple2dLayer::new(&loader.instance, &mut vk_ctx, &to_asset_path("textures/skyboxes/piazza_bologni/piazza_bologni_1k.hdr"))) );
+        
         // let model_matrix = glm::Mat4::identity();
 
         Self
