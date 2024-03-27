@@ -164,24 +164,6 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &GkBitMap) -> GkBitMap
     let w = face_size * 3;
     let h = face_size * 4;
 
-    // let d = match bitmap.data
-    // {
-    //     EBitMapData::UByte(_) => {
-    //         let mut u: Vec<u8> = Vec::new();
-    //         // u.reserve(udata.len())
-    //         let size = (w * h) as usize * bitmap.channels * bitmap.get_bytes_per_component();
-    //         u.reserve(size);
-    //         EBitMapData::UByte(u)
-    //     },
-    //     EBitMapData::Float(_) => {
-    //         let mut f: Vec<f32> = Vec::new();
-    //         // f.reserve(fdata.len());
-    //         let size = (w * h) as usize * bitmap.channels;
-    //         f.reserve(size);
-    //         EBitMapData::Float(f)
-    //     }
-    // };
-    // let mut result = GkBitMap::new(w as u32, h as u32, None, bitmap.channels, d);
     let mut result = GkBitMap::new(w as u32, h as u32, 1, bitmap.channels, bitmap.format, Vec::new());
 
     let face_offsets : Vec<glm::IVec2> = vec![
@@ -207,8 +189,8 @@ pub fn convert_equirectangle_to_vertical_cross(bitmap: &GkBitMap) -> GkBitMap
                 let theta = p.y.atan2(p.x);
                 let phi = p.z.atan2(r);
                 // f32 source coordinates
-                let uf = (2.0 * face_size as f32 * (theta + std::f32::consts::PI) / std::f32::consts::PI) as f32;
-                let vf = (2.0 * face_size as f32 * (std::f32::consts::PI / 2.0 - phi) / std::f32::consts::PI) as f32;
+                let uf = 2.0 * face_size as f32 * (theta + std::f32::consts::PI) / std::f32::consts::PI;
+                let vf = 2.0 * face_size as f32 * (std::f32::consts::PI / 2.0 - phi) / std::f32::consts::PI;
                 // 4-samples bilinear interpolation
                 let u1 = (uf.floor() as i32).clamp(0, clamp_w);
                 let v1 = (vf.floor() as i32).clamp(0, clamp_h);
@@ -240,32 +222,9 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &GkBitMap) -> GkBitMap
     let face_width = bitmap.width / 3;
     let face_height = bitmap.height / 4;
 
-    // let d = match bitmap.data
-    // {
-    //     EBitMapData::UByte(_) => {
-    //         let mut u: Vec<u8> = Vec::new();
-    //         // u.reserve(udata.len())
-    //         let size = (face_width * face_height) as usize * bitmap.channels * bitmap.get_bytes_per_component() * 6;
-    //         u.reserve(size);
-    //         EBitMapData::UByte(u)
-    //     },
-    //     EBitMapData::Float(_) => {
-    //         let mut f: Vec<f32> = Vec::new();
-    //         // f.reserve(fdata.len());
-    //         let size = (face_width * face_height) as usize * bitmap.channels * 6;
-    //         f.reserve(size);
-    //         EBitMapData::Float(f)
-    //     }
-    // };
     // let mut cubemap = GkBitMap::new(face_width, face_height, Some(6), bitmap.channels, d);
     let mut cubemap = GkBitMap::new(face_width, face_height, 6, bitmap.channels, bitmap.format, Vec::new());
 
-    // let pixel_size = cubemap.channels;
-    // let src = bitmap.data.as_ptr();
-    // let dst = cubemap.data.as_mut_ptr();
-
-    // let src = bitmap.get_data_ptr();
-    // let dst = cubemap.get_data_mut_ptr();
     let src_ptr = bitmap.data.as_ptr();
     let dst_ptr = cubemap.data.as_mut_ptr();
 
@@ -323,24 +282,6 @@ pub fn convert_vertical_cross_to_cubemap_faces(bitmap: &GkBitMap) -> GkBitMap
                     _ => {}
                 }
                 let src_offset = (y * bitmap.width + x) as isize * pixel_size as isize;
-                // unsafe { std::ptr::copy_nonoverlapping(src.offset(src_offset), dst.offset(dst_offset),pixel_size); }
-                // unsafe{
-                //     match src
-                //     {
-                //         EBitMapDataPtr::UBytePtr(src_ptr) => {
-                //             if let EBitMapDataMutPtr::UByteMutPtr(dst_mut_ptr) = dst
-                //             {
-                //                 std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
-                //             }
-                //         }
-                //         EBitMapDataPtr::FloatPtr(src_ptr) => {
-                //             if let EBitMapDataMutPtr::FloatMutPtr(dst_mut_ptr) = dst
-                //             {
-                //                 std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_mut_ptr.offset(dst_offset), pixel_size);
-                //             }
-                //         }
-                //     }
-                // }
                 unsafe{ std::ptr::copy_nonoverlapping(src_ptr.offset(src_offset), dst_ptr.offset(dst_offset), pixel_size); }
                 dst_offset += pixel_size as isize;
             } // i

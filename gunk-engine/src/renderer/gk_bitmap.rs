@@ -188,13 +188,8 @@ impl GkBitMap
     {
         let bm_type = if layers == 6 { EBitMapType::TypeCube } else  { EBitMapType::Type2D };
 
-        let size = (width * height * layers) as usize * Self::get_bytes_per_component(&format) * channels;
+        let size = (width * height * layers) as usize * channels * Self::get_bytes_per_component(&format);
         
-        // let mut d = Vec::with_capacity(size);
-        // if !data.is_empty()
-        // {
-        //     d.copy_from_slice(data.as_slice());
-        // }
         let d = if !data.is_empty()
         {
             let mut v = Vec::new();
@@ -222,14 +217,6 @@ impl GkBitMap
                 if self.channels > 3 { self.data[offset + 3] = (c.w * 255.0) as u8; }
             },
             EBitMapFormat::Float => {
-                // let channel_size = Self::get_bytes_per_component(&self.format);
-                // let dst_ptr = self.data.as_mut_ptr();
-                // unsafe{
-                //     if self.channels > 0 { std::ptr::copy_nonoverlapping(c.x.to_be_bytes().as_ptr(), dst_ptr.offset((offset + (0 * channel_size)) as isize), channel_size); }
-                //     if self.channels > 1 { std::ptr::copy_nonoverlapping(c.y.to_be_bytes().as_ptr(), dst_ptr.offset((offset + (1 * channel_size)) as isize), channel_size); }
-                //     if self.channels > 2 { std::ptr::copy_nonoverlapping(c.y.to_be_bytes().as_ptr(), dst_ptr.offset((offset + (2 * channel_size)) as isize), channel_size); }
-                //     if self.channels > 3 { std::ptr::copy_nonoverlapping(c.y.to_be_bytes().as_ptr(), dst_ptr.offset((offset + (3 * channel_size)) as isize), channel_size); }
-                // }
                 let data = self.data.as_mut_ptr() as *mut f32;
                 unsafe {
                     if self.channels > 0 { *data.offset(offset as isize + 0) = c.x; }
@@ -254,13 +241,6 @@ impl GkBitMap
                 )
             },
             EBitMapFormat::Float => {
-                // let channel_size = Self::get_bytes_per_component(&self.format);
-                // glm::Vec4::new(
-                //     if self.channels > 0 { f32::from_be_bytes( self.data.as_slice()[(offset + (0 * channel_size))..((offset + (0 * channel_size)) + 4)].try_into().expect("Failed to convert byte to float!") ) } else { 0.0 },
-                //     if self.channels > 1 { f32::from_be_bytes( self.data.as_slice()[(offset + (1 * channel_size))..((offset + (1 * channel_size)) + 4)].try_into().expect("Failed to convert byte to float!") ) } else { 0.0 },
-                //     if self.channels > 2 { f32::from_be_bytes( self.data.as_slice()[(offset + (2 * channel_size))..((offset + (2 * channel_size)) + 4)].try_into().expect("Failed to convert byte to float!") ) } else { 0.0 },
-                //     if self.channels > 3 { f32::from_be_bytes( self.data.as_slice()[(offset + (3 * channel_size))..((offset + (3 * channel_size)) + 4)].try_into().expect("Failed to convert byte to float!") ) } else { 0.0 },
-                // )
                 let data = self.data.as_ptr() as *const f32;
                 glm::Vec4::new(
                     if self.channels > 0 { unsafe { *data.offset(offset as isize + 0) } } else { 0.0 },

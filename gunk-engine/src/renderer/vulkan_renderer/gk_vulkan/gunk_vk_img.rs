@@ -160,14 +160,14 @@ pub fn create_vk_sampler(device: &ash::Device) -> vk::Sampler
         address_mode_v: vk::SamplerAddressMode::REPEAT,
         address_mode_w: vk::SamplerAddressMode::REPEAT,
         mip_lod_bias: 0.0,
-        anisotropy_enable: vk::FALSE,
         max_anisotropy: 1.0,
         compare_enable: vk::FALSE,
         compare_op: vk::CompareOp::ALWAYS,
         min_lod: 0.0,
         max_lod: 0.0,
         border_color: vk::BorderColor::INT_OPAQUE_BLACK,
-        unnormalized_coordinates: vk::FALSE
+        unnormalized_coordinates: vk::FALSE,
+        ..Default::default()
     };
 
     unsafe{ vk_check!(device.create_sampler(&create_info, None)).unwrap() }
@@ -615,7 +615,7 @@ fn img_f3_to_f4(w: usize, h: usize, input_data: &Vec<f32>) -> Vec<f32>
 {
     let num_pixels = w * h;
     let mut output: Vec<f32> = Vec::new();
-    output.resize(num_pixels * 4, 1.0); // size of pixels and its channels
+    output.resize(num_pixels * 4, 0.0); // size of pixels and its channels
     let mut input_index = 0;
     // dbg!(output.capacity());
     let mut output_index = 0;
@@ -676,52 +676,12 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
 
     let cube: GkBitMap = if file_names.len() == 1
     {
-        // let file = file_names[0].to_str().unwrap().as_ptr() as *const c_char;
-
-        // let img_32 = float24_to_float32(tex_width as usize, tex_height as usize, &img_24);
-
         let img = image::open(std::path::Path::new(&file_names[0])).map_err( |e| { log_err!(e); } ).unwrap();
-        // let pixels = img_f3_to_f4(img.width(), img.height(), img)
-        // let pixels = img.to_rgba8().into_raw();
-        // let pixels = img.to_rgb32f().into_raw().as_bytes().to_vec();
-        let pixels = img_f3_to_f4(img.width() as usize, img.height() as usize, &img.to_rgb32f().into_raw()).as_bytes().to_vec();
+        let img = img.flipv();
+        // let pixels = img_f3_to_f4(img.width() as usize, img.height() as usize, &img.to_rgb32f().into_raw());
+        let pixels = img.to_rgba32f().into_raw();
     
-
-        // let f = match std::fs::File::open(file_names[0].clone())
-        // {
-        //     Ok(file) => { file },
-        //     Err(err) => { log_err!(err.to_string()); return Err(err.to_string()); }
-        // };
-        // let f = std::io::BufReader::new(f);
-        
-        // let hdr = match hdr::HdrDecoder::new(f)
-        // {
-        //     Ok(hdr) => { hdr },
-        //     Err(err) => { log_err!(err.to_string()); return Err(err.to_string()); }
-        // };
-        // let img_meta = hdr.metadata();
-        // let img24 = match hdr.read_image_hdr()
-        // {
-        //     Ok(img) => { img },
-        //     Err(err) => { log_err!(err.to_string()); return Err(err.to_string()); }
-        // };
-
-        // let img32 = float24_to_float32(img_meta.width as usize, img_meta.height as usize, &img24);
-
-        // let img = image::codecs::hdr::read_raw_file(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
-
-        // let img = image::open(file_names[0].as_path()).map_err( |e| { log_err!(e); } ).unwrap();
-        // let pixels = img.to_rgba8().into_raw();
-        // let pixels = img.to_rgba32f().into_raw();
-
-        // width = img.width();
-        // height = img.height();
-
-        // let bitmap_in = GkBitMap::new(img.width(), img.height(), Some(1), 4, &pixels);
-        // let bitmap_in = GkBitMap::new(img.width(), img.height(), Some(1), 4, gk_bitmap::EBitMapData::Float(pixels));
-        // let bitmap_in = GkBitMap::new(tex_width as u32, tex_height as u32, None, 4, gk_bitmap::EBitMapData::Float(img_32));
-        // let bitmap_in = GkBitMap::new(img_meta.width, img_meta.height, Some(1), 4, gk_bitmap::EBitMapData::Float(img32));
-        let bitmap_in = GkBitMap::new(img.width(), img.height(), 1, 4, EBitMapFormat::Float, pixels);
+        let bitmap_in = GkBitMap::new(img.width(), img.height(), 1, 4, EBitMapFormat::Float, pixels.as_bytes().to_vec());
         let bitmap_out = convert_equirectangle_to_vertical_cross(&bitmap_in);
 
         convert_vertical_cross_to_cubemap_faces(&bitmap_out)
@@ -734,11 +694,6 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
         }
     };
 
-    // let img_format = match cube.data
-    // {
-    //     gk_bitmap::EBitMapData::UByte(_) => vk::Format::R8G8B8A8_SRGB,
-    //     gk_bitmap::EBitMapData::Float(_) => vk::Format::R32G32B32A32_SFLOAT
-    // };
     let img_format = match cube.format
     {
         gk_bitmap::EBitMapFormat::UByte => vk::Format::R8G8B8A8_SRGB,
@@ -746,9 +701,6 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
     };
     let bytes_per_pixel = get_bytes_per_pixel_vk_format(img_format);
     let img_size : vk::DeviceSize = (cube.width * cube.height * bytes_per_pixel) as vk::DeviceSize * 6;
-    // let img_size : vk::DeviceSize = (cube.width * cube.height) as vk::DeviceSize * cube.channels as vk::DeviceSize * 6; 
-    // let img_size : vk::DeviceSize = (width * height * 4) as vk::DeviceSize * 6;
-    // let img_size : vk::DeviceSize = cube.data.len() as u64;
 
     let staging_buffer: vk::Buffer;
     let staging_allocation: Allocation;
@@ -761,29 +713,6 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
         MemoryLocation::CpuToGpu,
     );
 
-    // match cube.data
-    // {
-    //     gk_bitmap::EBitMapData::UByte(ref udata) =>
-    //     {
-    //         unsafe
-    //         {
-    //             let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
-    //             mapped_ptr.copy_from_nonoverlapping(udata.as_slice().as_ptr() as *const u8, udata.len());
-    //         }
-    //     }
-    //     gk_bitmap::EBitMapData::Float(ref fdata) =>
-    //     {
-    //         unsafe
-    //         {
-    //             // let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as *mut f32;
-    //             // mapped_ptr.copy_from_nonoverlapping(fdata.as_slice().as_ptr() as *const f32, fdata.len());
-    //             let data = std::slice::from_raw_parts(fdata.as_ptr() as *const u8, fdata.len() * 4);
-    //             let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as *mut u8;
-    //             // mapped_ptr.copy_from_nonoverlapping(fdata.as_slice().as_ptr() as *const u8, img_size as usize);
-    //             mapped_ptr.copy_from_nonoverlapping(data.as_ptr(), data.len());
-    //         }
-    //     }
-    // }
     unsafe {
         let mapped_ptr = staging_allocation.mapped_slice().unwrap().as_ptr() as * mut u8;
         mapped_ptr.copy_from_nonoverlapping(cube.data.as_ptr(), cube.data.len());
@@ -800,7 +729,8 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
             handle, img_format,
-            vk::ImageLayout::UNDEFINED, vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             6, 1);
 
         copy_vk_buffer_to_img(
@@ -812,7 +742,8 @@ pub fn gk_create_vk_cubemap_image(vk_ctx: &mut GkVkContext, file_names: Vec<std:
         transition_vk_image_layout(
             &vk_ctx.device, &cmd_buffer, 
             handle, img_format, 
-            vk::ImageLayout::TRANSFER_DST_OPTIMAL, vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, 
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             6, 1);
 
     gk_end_single_time_vk_command_buffer(vk_ctx, cmd_buffer);

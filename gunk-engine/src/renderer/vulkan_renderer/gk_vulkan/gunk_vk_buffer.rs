@@ -268,6 +268,12 @@ pub fn gk_destroy_vk_buffer(vk_ctx: &mut GkVkContext, buffer: GkVkBuffer)
     vk_check!( vk_ctx.allocator.as_mut().unwrap().free(buffer.allocation) ).unwrap();
 }
 
+pub fn gk_create_vk_uniform_buffer<T>(vk_ctx: &mut GkVkContext) -> GkVkBuffer
+{
+    let size = std::mem::size_of::<T>() as u64;
+    gk_create_vk_buffer(vk_ctx, "uniform buffer", vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST, MemoryLocation::CpuToGpu, size)
+}
+
 /// ### fn gk_destroy_vk_buffers( ... )
 /// *Traverses a Vec\<\> of GkVkBuffer and frees its resources*
 /// <pre>

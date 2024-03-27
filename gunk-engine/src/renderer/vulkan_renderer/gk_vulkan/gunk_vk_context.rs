@@ -175,9 +175,10 @@ impl GkVkSwapchain
     
         let format = choose_vk_swap_surface_format(details.formats);
         let present_mode = choose_vk_swap_present_mode(details.present_modes);
-        let extent = vk::Extent2D{ width: width, height: height };
+        // let extent = vk::Extent2D{ width: width, height: height };
+        let extent = choose_vk_swap_image_extent(&details.capabilities, width, height);
 
-        let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, details.capabilities, &format, &present_mode, &extent);
+        let (loader, handle) = create_vk_swapchain(&loader.instance, device, &loader.surface, queue_indices, &details.capabilities, &format, &present_mode, &extent);
         let images = unsafe 
         {
             vk_check!( loader.get_swapchain_images(handle) ).unwrap()

@@ -287,13 +287,28 @@ pub fn choose_vk_swap_present_mode(present_modes: Vec<vk::PresentModeKHR>) -> vk
 /// - Return
 ///     u32      <i>// The count of vk::Swapchain images</i>
 /// </pre>
-pub fn choose_vk_swap_image_count(capabilities: vk::SurfaceCapabilitiesKHR) -> u32
+pub fn choose_vk_swap_image_count(capabilities: &vk::SurfaceCapabilitiesKHR) -> u32
 {
     let image_count = capabilities.min_image_count + 1;
 
     let image_count_exceeded = capabilities.max_image_count > 0 && image_count > capabilities.max_image_count;
 
     if image_count_exceeded { capabilities.max_image_count } else { image_count }
+}
+
+pub fn choose_vk_swap_image_extent(capabilities: &vk::SurfaceCapabilitiesKHR, width: u32, height: u32) -> vk::Extent2D
+{
+    if capabilities.current_extent.width != u32::MAX
+    {
+        return capabilities.current_extent;
+    } else {
+        let mut actual_extent = vk::Extent2D{ width, height };
+
+        actual_extent.width = actual_extent.width.clamp(capabilities.min_image_extent.width, capabilities.max_image_extent.width);
+        actual_extent.height = actual_extent.height.clamp(capabilities.min_image_extent.height, capabilities.max_image_extent.height);
+
+        return actual_extent
+    }
 }
 
 /// ### fn create_vk_swapchain( ... ) -> (khr::Swapchain, vk::SwapchainKHR)
@@ -317,7 +332,7 @@ pub fn create_vk_swapchain(
         device: &ash::Device,
         surface: &GkVkSurface, 
         queue_indices: &Vec<u32>,
-        capabilities: vk::SurfaceCapabilitiesKHR,
+        capabilities: &vk::SurfaceCapabilitiesKHR,
         surface_format: &vk::SurfaceFormatKHR,
         present_mode: &vk::PresentModeKHR,
         extent: &vk::Extent2D,

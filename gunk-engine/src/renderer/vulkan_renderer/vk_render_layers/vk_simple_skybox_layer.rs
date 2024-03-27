@@ -6,32 +6,17 @@ use nalgebra_glm as glm;
 use memoffset;
 
 use crate::renderer::{
-    vulkan_renderer::gk_vulkan::{
-        gunk_vk_render_pass::{
-            GkVkRenderPass, GkVkRenderPassInfo, ERenderPassBit, 
-            gk_create_vk_renderpass, gk_destroy_vk_renderpass
-        }, 
-        gunk_vk_descriptor::{
-            GkVkDescriptor, gk_create_vk_desc_pool, 
-            get_vk_desc_set_layout_binding, get_vk_buffer_write_desc_set, 
-            get_vk_image_write_desc_set, gk_destroy_vk_descriptor
-        }, 
-        gunk_vk_buffer::{map_vk_allocation_data, gk_create_vk_array_buffer, gk_create_vk_buffer, gk_destroy_vk_buffer, GkVkBuffer},
-        gunk_vk_img::{
+    renderer_utils::to_shader_path, vulkan_renderer::gk_vulkan::{
+        gunk_vk_buffer::{gk_create_vk_array_buffer, gk_create_vk_buffer, gk_destroy_vk_buffer, map_vk_allocation_data, GkVkBuffer}, gunk_vk_context::{gk_create_vk_color_depth_framebuffers, gk_destroy_vk_framebuffers, GkVkContext}, gunk_vk_descriptor::{
+            get_vk_buffer_write_desc_set, get_vk_desc_set_layout_binding, get_vk_image_write_desc_set, gk_create_vk_desc_pool, gk_destroy_vk_descriptor, GkVkDescriptor
+        }, gunk_vk_img::{
             create_vk_sampler, gk_create_vk_cubemap_image, gk_destroy_vk_img, GkVkImage
-        }, 
-        gunk_vk_context::{GkVkContext, gk_create_vk_color_depth_framebuffers, gk_destroy_vk_framebuffers}, 
-        vk_utils::{
-            create_vk_pipeline_layout, create_vk_pipeline_info_vertex_input, 
-            create_vk_pipeline_info_assembly, create_vk_pipeline_info_color_blend_attachment, 
-            create_vk_pipeline_info_viewport, create_vk_pipeline_info_rasterization, 
-            create_vk_pipeline_info_multisample, create_vk_pipeline_info_color_blend, 
-            create_vk_pipeline_info_depth_stencil, create_vk_pipeline_info_dynamic_states, 
-            create_vk_pipeline_info_tessellation
-        }, 
-        vk_shader_utils::GkVkShaderModule
-    },
-    renderer_utils::to_shader_path
+        }, gunk_vk_render_pass::{
+            gk_create_vk_renderpass, gk_destroy_vk_renderpass, ERenderPassBit, GkVkRenderPass, GkVkRenderPassInfo
+        }, vk_shader_utils::GkVkShaderModule, vk_utils::{
+            create_vk_pipeline_info_assembly, create_vk_pipeline_info_color_blend, create_vk_pipeline_info_color_blend_attachment, create_vk_pipeline_info_depth_stencil, create_vk_pipeline_info_dynamic_states, create_vk_pipeline_info_multisample, create_vk_pipeline_info_rasterization, create_vk_pipeline_info_tessellation, create_vk_pipeline_info_vertex_input, create_vk_pipeline_info_viewport, create_vk_pipeline_layout
+        }
+    }
 };
 
 use crate::{ vk_check, log_info, log_err };
@@ -114,7 +99,7 @@ fn get_z_up_matrix() -> glm::Mat4
         1.0, 0.0, 0.0,  0.0,
         0.0,  c,   s,    0.0,
         0.0, -s,   c,   0.0,
-        0.0, 0.0, 0.0, 0.0
+        0.0, 0.0, 0.0, 1.0
     )
 }
 
@@ -220,7 +205,8 @@ impl VkSimpleSkyBoxLayer
             model_space_buffer: &GkVkBuffer
         ) -> GkVkDescriptor
     {
-        let pool = gk_create_vk_desc_pool(vk_ctx, 2, 0, 1);
+        let num_frames = vk_ctx.frame_sync.get_num_frames_in_flight() as u32;
+        let pool = gk_create_vk_desc_pool(vk_ctx, 2 * num_frames, 0, 1 * num_frames);
 
         let bindings: Vec<vk::DescriptorSetLayoutBinding> = vec![
             get_vk_desc_set_layout_binding(0, vk::DescriptorType::UNIFORM_BUFFER, 1, vk::ShaderStageFlags::VERTEX),
@@ -397,7 +383,8 @@ impl VkSimpleSkyBoxLayer
             vk_ctx.device.cmd_bind_descriptor_sets(*cmd_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline_layout, 0, &desc_set, &[]);
 
             // vk_ctx.device.cmd_draw(*cmd_buffer, VERTICES_DATA.len() as u32, 1, 0, 0);
-            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, SKYBOX_INDICES_DATA.len() as u32, 1, 0, 0, 0);
+            // vk_ctx.device.cmd_draw_indexed(*cmd_buffer, SKYBOX_INDICES_DATA.len() as u32, 1, 0, 0, 0);
+            vk_ctx.device.cmd_draw_indexed(*cmd_buffer, self.triangle_indices.as_ref().unwrap().size as u32 / std::mem::size_of::<u32>() as u32, 1, 0, 0, 0);
         }
     }
 

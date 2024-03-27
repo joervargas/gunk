@@ -218,7 +218,7 @@ impl renderer_utils::GfxRenderer for VulkanRenderer
         let current_frame = self.vk_ctx.frame_sync.get_current_frame_index();
         map_vk_allocation_data::<GkCameraUniformData>(&self.transform_uniforms[current_frame].allocation, &[camera_uniform_data], 1);
 
-        self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], delta_time);
+         self.layers3d.update(&self.vk_ctx, &self.transform_uniforms[current_frame], delta_time);
         self.layers2d.update(&self.vk_ctx);
     }
 
